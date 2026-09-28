@@ -1,0 +1,17 @@
+.env
+__pycache__/
+*.pyc
+
+logs/
+cache/
+draft/
+
+# runtime scratch — never commit
+temp_eval_images/
+temp.pdf
+*.qcow2
+
+# SCOUT data (task jsons, VM image, results) live outside the repo
+data/
+
+.DS_Store
