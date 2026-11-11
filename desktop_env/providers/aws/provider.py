@@ -7,7 +7,6 @@ import time
 from datetime import datetime, timedelta, timezone
 from desktop_env.providers.base import Provider
 
-# TTL configuration
 from desktop_env.providers.aws.config import ENABLE_TTL, DEFAULT_TTL_MINUTES, AWS_SCHEDULER_ROLE_ARN
 from desktop_env.providers.aws.scheduler_utils import schedule_instance_termination
 
@@ -26,22 +25,18 @@ class AWSProvider(Provider):
         ec2_client = boto3.client('ec2', region_name=self.region)
 
         try:
-            # Check the current state of the instance
             response = ec2_client.describe_instances(InstanceIds=[path_to_vm])
             state = response['Reservations'][0]['Instances'][0]['State']['Name']
             logger.info(f"Instance {path_to_vm} current state: {state}")
 
             if state == 'running':
-                # If the instance is already running, skip starting it
                 logger.info(f"Instance {path_to_vm} is already running. Skipping start.")
                 return
 
             if state == 'stopped':
-                # Start the instance if it's currently stopped
                 ec2_client.start_instances(InstanceIds=[path_to_vm])
                 logger.info(f"Instance {path_to_vm} is starting...")
 
-                # Wait until the instance reaches 'running' state
                 waiter = ec2_client.get_waiter('instance_running')
                 waiter.wait(
                     InstanceIds=[path_to_vm],
@@ -49,7 +44,6 @@ class AWSProvider(Provider):
                 )
                 logger.info(f"Instance {path_to_vm} is now running.")
             else:
-                # For all other states (terminated, pending, etc.), log a warning
                 logger.warning(f"Instance {path_to_vm} is in state '{state}' and cannot be started.")
 
         except ClientError as e:
@@ -80,10 +74,7 @@ class AWSProvider(Provider):
                     else:
                         logger.warning("No public IP address available for VNC access")
                     
-                    # return private_ip_address
-                    # # return public_ip_address
                     
-                    # Use public IP if AWS_USE_PUBLIC_IP is set to true, otherwise use private IP
                     use_public_ip = os.getenv('AWS_USE_PUBLIC_IP', 'false').lower() == 'true'
                     if use_public_ip and public_ip_address:
                         logger.info(f"Using public IP for controller connection: {public_ip_address}")
@@ -91,7 +82,7 @@ class AWSProvider(Provider):
                     else:
                         logger.info(f"Using private IP for controller connection: {private_ip_address}")
                         return private_ip_address
-            return ''  # Return an empty string if no IP address is found
+            return ''
         except ClientError as e:
             logger.error(f"Failed to retrieve IP address for the instance {path_to_vm}: {str(e)}")
             raise
@@ -101,9 +92,6 @@ class AWSProvider(Provider):
         ec2_client = boto3.client('ec2', region_name=self.region)
 
         try:
-            # NoReboot: snapshot the running VM without restarting it — a reboot would both
-            # disturb the final state being captured and cost minutes. Callers must flush the
-            # guest's write cache first (sync) or the last seconds of writes may miss the image.
             image_response = ec2_client.create_image(InstanceId=path_to_vm, Name=snapshot_name, NoReboot=True)
             image_id = image_response['ImageId']
             logger.info(f"AMI {image_id} created successfully from instance {path_to_vm}.")
@@ -117,10 +105,8 @@ class AWSProvider(Provider):
         ec2_client = boto3.client('ec2', region_name=self.region)
 
         try:
-            # Step 1: Retrieve the original instance details
             instance_details = ec2_client.describe_instances(InstanceIds=[path_to_vm])
             instance = instance_details['Reservations'][0]['Instances'][0]
-            # Resolve security groups with fallbacks
             security_groups = [sg['GroupId'] for sg in instance.get('SecurityGroups', []) if 'GroupId' in sg]
             if not security_groups:
                 env_sg = os.getenv('AWS_SECURITY_GROUP_ID')
@@ -130,7 +116,6 @@ class AWSProvider(Provider):
                 else:
                     raise ValueError("No security groups found on instance and AWS_SECURITY_GROUP_ID not set")
 
-            # Resolve subnet with fallbacks
             subnet_id = instance.get('SubnetId')
             if not subnet_id:
                 nis = instance.get('NetworkInterfaces', []) or []
@@ -147,12 +132,10 @@ class AWSProvider(Provider):
                     else:
                         raise ValueError("SubnetId not available on instance, NetworkInterfaces, or environment")
 
-            # Resolve instance type with fallbacks
             instance_type = instance.get('InstanceType') or os.getenv('AWS_INSTANCE_TYPE') or 't3.large'
             if instance.get('InstanceType') is None:
                 logger.info(f"InstanceType missing on instance; using '{instance_type}' from env/default")
             
-            # Step 2: Terminate the old instance (skip if already terminated/shutting-down)
             state = (instance.get('State') or {}).get('Name')
             if state in ['shutting-down', 'terminated']:
                 logger.info(f"Old instance {path_to_vm} is already in state '{state}', skipping termination.")
@@ -167,10 +150,8 @@ class AWSProvider(Provider):
                     else:
                         raise
 
-            # Step 3: Launch a new instance from the snapshot(AMI) with performance optimization
             logger.info(f"Launching a new instance from AMI {snapshot_name}...")
             
-            # TTL configuration follows the same env flags as allocation (centralized)
             enable_ttl = ENABLE_TTL
             default_ttl_minutes = DEFAULT_TTL_MINUTES
             ttl_seconds = max(0, default_ttl_minutes * 60)
@@ -194,11 +175,10 @@ class AWSProvider(Provider):
                     {
                         "DeviceName": "/dev/sda1", 
                         "Ebs": {
-                            # "VolumeInitializationRate": 300
-                            "VolumeSize": 30,  # Size in GB
-                            "VolumeType": "gp3",  # General Purpose SSD
+                            "VolumeSize": 30,
+                            "VolumeType": "gp3",
                             "Throughput": 1000,
-                            "Iops": 4000  # Adjust IOPS as needed
+                            "Iops": 4000
                         }
                     }
                 ]
@@ -211,14 +191,12 @@ class AWSProvider(Provider):
             ec2_client.get_waiter('instance_running').wait(InstanceIds=[new_instance_id])
 
             logger.info(f"Instance {new_instance_id} is ready.")
-            # Schedule cloud-side termination via EventBridge Scheduler (auto-resolve role ARN)
             try:
                 if enable_ttl:
                     schedule_instance_termination(self.region, new_instance_id, ttl_seconds, AWS_SCHEDULER_ROLE_ARN, logger)
             except Exception as e:
                 logger.warning(f"Failed to create EventBridge Scheduler for {new_instance_id}: {e}")
 
-            # Schedule cloud-side termination via EventBridge Scheduler (same as allocation path)
             try:
                 if enable_ttl and os.getenv('AWS_SCHEDULER_ROLE_ARN'):
                     scheduler_client = boto3.client('scheduler', region_name=self.region)

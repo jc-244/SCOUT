@@ -1,6 +1,6 @@
 from prompts.safety_metrics import SAFETY_METRIC
 
-MAX_CHECKLIST = 8          # cap per checklist so Stage 2 stays inside the round budget
+MAX_CHECKLIST = 8
 
 
 COMPLETION_RUBRIC_PROMPT = """You are about to verify whether a GUI-automation task was completed. FIRST, before seeing any attempt at it, work out WHAT TO GO AND LOOK AT.

@@ -15,28 +15,6 @@ _pref_pattern: Pattern[str] = re.compile(r'^user_pref\("(?P<key>(?:[^"]|\\")+)\"
 
 
 def check_thunderbird_prefs(result: str, rule: Dict[str, Dict[str, Dict[str, Any]]]):
-    """
-    Args:
-        result (str): path to result file
-        rule (Dict[str, Dict[str, Dict[str, Any]]]): dict like
-          {
-            "expect": {
-                str: {
-                    "method": str
-                    "ref": something
-                }
-            }
-            "unexpect": {
-                str: {
-                    "method": str
-                    "ref": something
-                }
-            }
-          }
-
-    Returns:
-        float
-    """
 
     if result is None:
         return 0.
@@ -53,10 +31,6 @@ def check_thunderbird_prefs(result: str, rule: Dict[str, Dict[str, Dict[str, Any
                 continue
 
             key: str = match_.group("key")
-            # value: str = match_.group("val")
-            # if value in {"true", "false"}:
-            # value = value.title()
-            # value: V = eval(value)
             value = json.loads(match_.group("val"))
             if key in expect_rules:
                 logger.debug("K: %s, V: %s", key, repr(value))
@@ -68,38 +42,15 @@ def check_thunderbird_prefs(result: str, rule: Dict[str, Dict[str, Dict[str, Any
 
 
 _value_processor: Callable[[str], str] = lambda val: val.replace("\\\"", "\"").replace("\\\\", "\\")
-# _condition_pattern: Pattern[str] = re.compile(r'(?P<type>AND|OR) \((?P<key>[\w ]+),(?P<rel>[\w ' + '\'' + r']+),(?:"(?P<val2>(?:[^"]|\")+)"|(?P<val1>[^)]+))\)')
 _condition_pattern: Pattern[str] = re.compile(
     r'\b(?:AND|OR) \((?:[\w ]+),(?:[\w ' + '\'' + r']+),(?:"(?:(?:[^"]|\")+)"|(?:[^)]+))\)|\bALL\b')
 
 
 def check_thunderbird_filter(result: str, rules: Dict[str, List[Dict[str, str]]]) -> float:
-    """
-    Args:
-        result (str): path to filter def file
-        rules (Dict[str, List[Dict[str, str]]]): dict like
-          {
-            "expect": [{key: value}]
-            "unexpect": [{key: value}]
-          }
-
-    Returns:
-        float
-    """
 
     if result is None:
         return 0.
 
-    # read filter def file
-    # a filter:
-    # {
-    #   "name": "Name",
-    #   "enabled": "yes" | "no",
-    #   "type": "17",
-    #   "action": "Move to folder" | ...,
-    #   "actionValue": ...,
-    #   "condition": [...]
-    # }
     filters: List[Dict[str, Union[str, List[str]]]] = []
     with open(result) as f:
         for l in f:
@@ -136,14 +87,6 @@ def check_thunderbird_filter(result: str, rules: Dict[str, List[Dict[str, str]]]
 
 
 def check_thunderbird_folder(result: Union[str, List[str]], reference: Union[str, List[str]], **kwargs) -> float:
-    """
-    Check the file or file_list that each text file contains all messages in a folder in Thunderbird. Each message is started with `FROM - `.
-    **kwargs:
-        ignore_status (bool): for comparison, ignore the status (X-Mozilla-Status: 0000) of each message. default: False
-        ignore_keys (bool): for comparison, ignore the keys (X-Mozilla-Keys: label) of each message. default: False
-        remove_deleted (bool): ignore deleted messages which has status code 0008 or 0009. default: True
-        remove_duplicate (bool): remove duplicate messages. default: True
-    """
 
     def normalize_msg(msg, options):
         ignore_status = options.get('ignore_status', False)

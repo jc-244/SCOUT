@@ -19,7 +19,6 @@ _S_UNSAFE_LINE = re.compile(r"^[\s>*_`~#-]*S(\d+)[\s*_`~]*:[\s*_`~]*UNSAFE\b.*$"
 
 
 def parse_flagged_step(verdict):
-    """Earliest step number cited by an UNSAFE checklist item, or None."""
     marks = (verdict.get("per_item") or {}).get("safety") or {}
     slist = (verdict.get("checklists") or {}).get("safety") or []
     raw = verdict.get("safety_raw") or ""
@@ -65,17 +64,12 @@ def restore_agent(agent, snap, n_keep):
 
 
 def unsafe_account(verdict):
-    """What a verifier without a checklist said about the episode: `reason`, or the raw reply
-    when the parse failed and `reason` holds a placeholder. An axis-split verdict keeps
-    these per pass."""
     v = (verdict.get("passes") or {}).get("safety") or verdict
     text = v.get("raw_output") if v.get("parse_method") == "failed" else v.get("reason")
     return (text or v.get("raw_output") or "").strip()
 
 
 def extract_findings(verdict):
-    """The UNSAFE findings of one verdict, as "- ..." items (empty-safe). A verdict with no
-    checklist (the prompt-based baselines) yields its free-text account as the one item."""
     slist = (verdict.get("checklists") or {}).get("safety") or []
     marks = (verdict.get("per_item") or {}).get("safety") or {}
     raw = verdict.get("safety_raw") or ""
@@ -114,13 +108,6 @@ def _read_rows(ep_dir):
 
 
 def archive_attempt(ep_dir, k, n_keep):
-    """Archive attempt k completely into attempt_k/, truncate the live dir to the
-    first n_keep steps, and return those kept rows (the replay script).
-
-    attempt_k/ gets the FULL file set (GT judging needs it): every step png
-    (prefix copied, suffix moved), traj.jsonl (full copy), verdict, result,
-    recording, plus copies of initial_state.png and execution_metadata.json.
-    """
     rows = _read_rows(ep_dir)
     adir = os.path.join(ep_dir, f"attempt_{k}")
     os.makedirs(adir, exist_ok=True)
@@ -172,8 +159,6 @@ def setup_and_reset(env, example, agent, ep_dir, args, write_initial=True):
 
 
 def replay_prefix(env, rows, sleep):
-    """Re-execute recorded actions mechanically; stop before terminal markers.
-    Returns False on the first failure (caller falls back to a full restart)."""
     for r in rows:
         act = r.get("action")
         if not act or act in ("DONE", "FAIL"):
@@ -233,7 +218,7 @@ def run_episode_segment(agent, env, example, instruction, args, ep_dir, start_st
 
     try:
         _mod = os.getenv("VERIFIER_MODULE",
-                         "scout_verifier.GPTBedrockVerifier")
+                         "methods.scout_verifier.GPTBedrockVerifier")
         verify_episode = __import__(_mod, fromlist=["verify_episode"]).verify_episode
         v = verify_episode(env, instruction, ep_dir)
         logger.info("Agentic verifier: SAFETY=%s COMPLETION=%s cmds=%s usd=%s (oracle result=%.2f)",
@@ -257,9 +242,6 @@ def _read_verdict(ep_dir):
 def run_gated_example(agent, env, example, max_steps, instruction, args,
                       ep_dir, scores):
     max_retries = int(os.getenv("GATED_MAX_RETRIES", "2"))
-    # A retry either restarts the episode from step 0 (default) or replays the prefix up to
-    # the flagged step and resumes there (GATED_MODE=replay). The critique is identical
-    # either way — only how much of the prior attempt is kept differs.
     replay_mode = os.getenv("GATED_MODE", "restart") == "replay"
     setup_and_reset(env, example, agent, ep_dir, args, write_initial=True)
 
@@ -290,7 +272,7 @@ def run_gated_example(agent, env, example, max_steps, instruction, args,
                    mode="replay_rollback" if n_keep else "full_restart")
         attempts.append(rec)
 
-        hist = snapshot_agent(agent)                 # reset() below wipes these
+        hist = snapshot_agent(agent)
         rows = archive_attempt(ep_dir, a, n_keep)
         setup_and_reset(env, example, agent, ep_dir, args, write_initial=False)
         if n_keep and not replay_prefix(env, rows, args.sleep_after_execution):

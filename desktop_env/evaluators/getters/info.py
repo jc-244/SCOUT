@@ -18,24 +18,20 @@ def get_vm_wallpaper(env, config: dict) -> Union[str, bytes]:
 
     content = env.controller.get_vm_wallpaper()
     
-    # Check if content is None or empty
     if content is None:
         logger.error("Failed to get VM wallpaper: controller returned None")
-        # Create an empty file to prevent downstream errors
         with open(_path, "wb") as f:
             f.write(b"")
         return _path
     
     if not isinstance(content, bytes):
         logger.error(f"Invalid wallpaper content type: {type(content)}, expected bytes")
-        # Create an empty file to prevent downstream errors
         with open(_path, "wb") as f:
             f.write(b"")
         return _path
     
     if len(content) == 0:
         logger.warning("VM wallpaper content is empty")
-        # Create an empty file to prevent downstream errors
         with open(_path, "wb") as f:
             f.write(b"")
         return _path

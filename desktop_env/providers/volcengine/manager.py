@@ -9,7 +9,6 @@ from volcenginesdkecs.api import ECSApi
 
 from desktop_env.providers.base import VMManager
 
-# Load environment variables from .env file
 dotenv.load_dotenv()
 
 for env_name in [
@@ -40,18 +39,14 @@ VOLCENGINE_ZONE_ID = os.getenv("VOLCENGINE_ZONE_ID")
 VOLCENGINE_DEFAULT_PASSWORD = os.getenv("VOLCENGINE_DEFAULT_PASSWORD")
 
 def _allocate_vm(screen_size=(1920, 1080)):
-    """分配火山引擎虚拟机"""
 
-    # 初始化火山引擎客户端
     configuration = volcenginesdkcore.Configuration()
     configuration.region = VOLCENGINE_REGION
     configuration.ak = VOLCENGINE_ACCESS_KEY_ID
     configuration.sk = VOLCENGINE_SECRET_ACCESS_KEY
     configuration.client_side_validation = True
-    # set default configuration
     volcenginesdkcore.Configuration.set_default(configuration)
 
-    # use global default configuration
     api_instance = ECSApi()
     
     instance_id = None
@@ -70,7 +65,6 @@ def _allocate_vm(screen_size=(1920, 1080)):
             except Exception as cleanup_error:
                 logger.error(f"Failed to terminate instance {instance_id} after {signal_name}: {str(cleanup_error)}")
         
-        # Restore original signal handlers
         signal.signal(signal.SIGINT, original_sigint_handler)
         signal.signal(signal.SIGTERM, original_sigterm_handler)
         
@@ -81,11 +75,9 @@ def _allocate_vm(screen_size=(1920, 1080)):
             sys.exit(0)
     
     try:
-        # Set up signal handlers
         signal.signal(signal.SIGINT, signal_handler)
         signal.signal(signal.SIGTERM, signal_handler)
         
-        # 创建实例参数
         create_instance_params = ecs_models.RunInstancesRequest(
             image_id = VOLCENGINE_IMAGE_ID,
             instance_type = VOLCENGINE_INSTANCE_TYPE,
@@ -103,17 +95,15 @@ def _allocate_vm(screen_size=(1920, 1080)):
                 size=30,
             )],
             zone_id=VOLCENGINE_ZONE_ID,
-            password = VOLCENGINE_DEFAULT_PASSWORD,  # 默认密码
+            password = VOLCENGINE_DEFAULT_PASSWORD,
             description = "OSWorld evaluation instance"
         )
         
-        # 创建实例
         response = api_instance.run_instances(create_instance_params)
         instance_id = response.instance_ids[0]
         
         logger.info(f"Waiting for instance {instance_id} to be running...")
         
-        # 等待实例运行
         while True:
             instance_info = api_instance.describe_instances(ecs_models.DescribeInstancesRequest(
                 instance_ids=[instance_id]
@@ -127,7 +117,6 @@ def _allocate_vm(screen_size=(1920, 1080)):
         
         logger.info(f"Instance {instance_id} is ready.")
         
-        # 获取实例IP地址
         try:
             instance_info = api_instance.describe_instances(ecs_models.DescribeInstancesRequest(
                 instance_ids=[instance_id]
@@ -166,7 +155,6 @@ def _allocate_vm(screen_size=(1920, 1080)):
             ))
         raise
     finally:
-        # Restore original signal handlers
         signal.signal(signal.SIGINT, original_sigint_handler)
         signal.signal(signal.SIGTERM, original_sigterm_handler)
 
@@ -174,11 +162,6 @@ def _allocate_vm(screen_size=(1920, 1080)):
 
 
 class VolcengineVMManager(VMManager):
-    """
-    Volcengine VM Manager for managing virtual machines on Volcengine.
-    
-    Volcengine does not need to maintain a registry of VMs, as it can dynamically allocate and deallocate VMs.
-    """
     def __init__(self, **kwargs):
         self.initialize_registry()
 

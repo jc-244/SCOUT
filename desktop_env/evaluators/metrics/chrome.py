@@ -16,9 +16,6 @@ logger = logging.getLogger("desktopenv.metrics.chrome")
 
 
 def is_expected_active_tab(active_tab_info: Dict[str, str], rule: Dict[str, Any]) -> float:
-    """
-    Checks if the expected active tab is open in Chrome.
-    """
     if not active_tab_info:
         return 0.
 
@@ -39,9 +36,6 @@ def is_expected_active_tab(active_tab_info: Dict[str, str], rule: Dict[str, Any]
 
 
 def is_expected_active_tab_approximate(active_tab_info: Dict[str, str], rule: Dict[str, Any]) -> float:
-    """
-    Checks if the expected active tab is open in Chrome, ignoring query parameters in the URL.
-    """
     if not active_tab_info:
         return 0.
 
@@ -66,16 +60,10 @@ def is_expected_active_tab_approximate(active_tab_info: Dict[str, str], rule: Di
         return 0
 
 
-# rules[expected] is a string-formatted regex
 def is_expected_url_pattern_match(result, rules) -> float:
-    """
-    This function is used to search the expected pattern in the url using regex.
-    result is the return value of function "activte_tab_info" or return value of function "get_active_url_from_accessTree"   
-    """
     if not result:
         return 0.
 
-    # Extract URL from result parameter - result can be either a string URL or a dict with 'url' field
     if isinstance(result, str):
         result_url = result
         logger.info("result url: {}".format(result_url))
@@ -88,7 +76,6 @@ def is_expected_url_pattern_match(result, rules) -> float:
 
     logger.info(f"Result URL to match: {result_url}")
     
-    # expect_regex = re.compile(rules["expected"])
     patterns = rules["expected"]
     logger.info("expected_regex: {}".format(patterns))
     for pattern in patterns:
@@ -107,7 +94,6 @@ def is_expected_installed_extensions(installed_extensions, expected) -> float:
     logger.info(installed_extensions)
     expected_extensions = expected["expected"]
 
-    # whether the expected extensions are installed
     set_expected_extensions = set(expected_extensions)
     set_installed_extensions = set(installed_extensions)
 
@@ -118,9 +104,6 @@ def is_expected_installed_extensions(installed_extensions, expected) -> float:
 
 
 def is_expected_tabs(open_tabs: List[Dict[str, str]], rule: Dict[str, Any]) -> float:
-    """
-    Checks if the expected tabs are open in Chrome.
-    """
     if not open_tabs:
         return 0.
 
@@ -141,9 +124,6 @@ def is_expected_tabs(open_tabs: List[Dict[str, str]], rule: Dict[str, Any]) -> f
 
 
 def is_expected_bookmarks(bookmarks: List[str], rule: Dict[str, Any]) -> float:
-    """
-    Checks if the expected bookmarks are in Chrome.
-    """
     if not bookmarks:
         return 0.
     elif rule['type'] == "bookmark_bar_folders_names":
@@ -155,11 +135,9 @@ def is_expected_bookmarks(bookmarks: List[str], rule: Dict[str, Any]) -> float:
                                       bookmark['type'] == 'url']
         return 1. if set(bookmark_bar_websites_urls) == set(rule['urls']) else 0.
     elif rule['type'] == "liked_authors_websites_urls":
-        # Check if "liked authors" folder exists
         liked_authors_folder = next((bookmark for bookmark in bookmarks['bookmark_bar']['children'] if
                                      bookmark['type'] == 'folder' and bookmark['name'] == 'Liked Authors'), None)
         if liked_authors_folder:
-            # Check if it contains the specified URLs
             logger.info("'Liked Authors' folder exists")
             liked_authors_urls = [bookmark['url'] for bookmark in liked_authors_folder['children'] if
                                   bookmark['type'] == 'url']
@@ -196,14 +174,10 @@ def is_expected_search_query(active_tab_info: Dict[str, str], rules: Dict[str, A
 
 
 def compare_pdfs(pdf1_path: Union[str, List[str]], pdf2_path: Union[str, List[str]]):
-    """
-    Compare two PDF files.
-    """
     if type(pdf2_path) != list:
         pdf1_path, pdf2_path = [pdf1_path], [pdf2_path]
 
     def extract_text_from_pdf(pdf_path):
-        """Extract text from each page of the PDF."""
         text = ""
         with fitz.open(pdf_path) as pdf:
             for page in pdf:
@@ -250,7 +224,6 @@ def compare_pdf_images(pdf1_path: str, pdf2_path: str, **kwargs) -> float:
                 base_image = pdf_document.extract_image(xref)
                 image_bytes = base_image["image"]
                 
-                # convert to PIL Image
                 try:
                     pil_image = Image.open(io.BytesIO(image_bytes))
                     images.append(pil_image)
@@ -303,9 +276,6 @@ def compare_pdf_images(pdf1_path: str, pdf2_path: str, **kwargs) -> float:
 
 
 def compare_archive(pred_path: str, gold_path: str, **kwargs) -> float:
-    """
-    Compare two archives. Note that the files in the archives should be of the same type.
-    """
     file_path = kwargs.pop('file_path', '')
 
     if not pred_path:
@@ -313,12 +283,12 @@ def compare_archive(pred_path: str, gold_path: str, **kwargs) -> float:
     pred_folder = os.path.splitext(pred_path)[0] + '_pred'
     gold_folder = os.path.splitext(gold_path)[0] + '_gold'
 
-    if os.path.exists(pred_folder):  # remove existing folder for new predictions
+    if os.path.exists(pred_folder):
         shutil.rmtree(pred_folder, ignore_errors=True)
     os.makedirs(pred_folder)
     shutil.unpack_archive(pred_path, pred_folder)
 
-    if not os.path.exists(gold_folder):  # use cache if exists
+    if not os.path.exists(gold_folder):
         os.makedirs(gold_folder)
         shutil.unpack_archive(gold_path, gold_folder)
 
@@ -369,9 +339,6 @@ def compare_archive(pred_path: str, gold_path: str, **kwargs) -> float:
 
 
 def compare_htmls(html_path1: str, html_path2: str, **options) -> float:
-    """
-    Compare two HTML files.
-    """
     with open(html_path1, 'r', encoding='utf-8') as inf:
         soup1 = BeautifulSoup(inf, 'lxml')
     with open(html_path2, 'r', encoding='utf-8') as inf:
@@ -408,9 +375,6 @@ def compare_htmls(html_path1: str, html_path2: str, **options) -> float:
 
 
 def is_cookie_deleted(cookie_data, rule):
-    """
-    Check if the cookie is deleted.
-    """
 
     if rule['type'] == 'domains':
         cookies_domains = [cookie[1] for cookie in cookie_data]
@@ -424,10 +388,6 @@ def is_cookie_deleted(cookie_data, rule):
 
 
 def is_shortcut_on_desktop(shortcuts: Dict[str, str], rule):
-    """
-    Check if the shortcut is on the desktop.
-    """
-    # fixme: if the name of the website changed in the future, this will not work; can be replaced with url
     if rule['type'] == 'name':
         for shortcut_path, shortcut_content in shortcuts.items():
             if "Name=" + rule['name'] + "\n" in shortcut_content:
@@ -447,9 +407,6 @@ def is_shortcut_on_desktop(shortcuts: Dict[str, str], rule):
 
 
 def check_history_deleted(history_data, rule):
-    """
-    Check if the history is deleted.
-    """
 
     if rule['type'] == 'keywords':
         history_domains = [history[0] for history in history_data]
@@ -463,9 +420,6 @@ def check_history_deleted(history_data, rule):
 
 
 def check_enabled_experiments(enabled_experiments, rule):
-    """
-    Check if the enabled experiments are as expected.
-    """
     enabled_experiments_names = [experiment.split("@")[0] for experiment in enabled_experiments]
 
     if rule['type'] == 'names':
@@ -475,9 +429,6 @@ def check_enabled_experiments(enabled_experiments, rule):
 
 
 def check_font_size(font_size, rule):
-    """
-    Check if the font size is as expected.
-    """
 
     default_font_size = font_size['default_font_size']
     if rule['type'] == 'value':
@@ -489,9 +440,6 @@ def check_font_size(font_size, rule):
 
 
 def is_added_to_steam_cart(active_tab_info, rule):
-    """
-    Check if the item is added to the Steam cart.
-    """
     items = rule['items']
 
     content = active_tab_info['content']

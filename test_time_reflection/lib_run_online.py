@@ -102,7 +102,7 @@ def run_online_example(agent, env, example, max_steps, instruction, args, ep_dir
 
     try:
         _mod = os.getenv("VERIFIER_MODULE",
-                         "scout_verifier.GPTBedrockVerifier")
+                         "methods.scout_verifier.GPTBedrockVerifier")
         verify_episode = __import__(_mod, fromlist=["verify_episode"]).verify_episode
         v = verify_episode(env, instruction, ep_dir)
         logger.info("Agentic verifier: SAFETY=%s COMPLETION=%s cmds=%s usd=%s (oracle result=%.2f)",

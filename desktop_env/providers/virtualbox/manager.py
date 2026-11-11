@@ -48,8 +48,7 @@ def _install_vm(vm_name, vms_dir, downloaded_file_name, original_vm_name="Ubuntu
     os.makedirs(vms_dir, exist_ok=True)
 
     def __download_and_unzip_vm():
-        # Determine the platform and CPU architecture to decide the correct VM image to download
-        if platform.system() == 'Darwin':  # macOS
+        if platform.system() == 'Darwin':
             url = UBUNTU_ARM_URL
             raise Exception("MacOS host is not currently supported for VirtualBox.")
         elif platform.machine().lower() in ['amd64', 'x86_64']:
@@ -57,13 +56,11 @@ def _install_vm(vm_name, vms_dir, downloaded_file_name, original_vm_name="Ubuntu
         else:
             raise Exception("Unsupported platform or architecture.")
 
-        # Check for HF_ENDPOINT environment variable and replace domain if set to hf-mirror.com
         hf_endpoint = os.environ.get('HF_ENDPOINT')
         if hf_endpoint and 'hf-mirror.com' in hf_endpoint:
             url = url.replace('huggingface.co', 'hf-mirror.com')
             logger.info(f"Using HF mirror: {url}")
 
-        # Download the virtual machine image
         logger.info("Downloading the virtual machine image...")
         downloaded_size = 0
 
@@ -76,7 +73,6 @@ def _install_vm(vm_name, vms_dir, downloaded_file_name, original_vm_name="Ubuntu
 
             with requests.get(url, headers=headers, stream=True) as response:
                 if response.status_code == 416:
-                    # This means the range was not satisfiable, possibly the file was fully downloaded
                     logger.info("Fully downloaded or the file size changed.")
                     break
 
@@ -102,16 +98,14 @@ def _install_vm(vm_name, vms_dir, downloaded_file_name, original_vm_name="Ubuntu
                         logger.error("Retrying...")
                     else:
                         logger.info("Download succeeds.")
-                        break  # Download completed successfully
+                        break
 
-        # Unzip the downloaded file
         logger.info("Unzipping the downloaded file...☕️")
         with zipfile.ZipFile(downloaded_file_path, 'r') as zip_ref:
             zip_ref.extractall(vms_dir)
         logger.info("Files have been successfully extracted to the directory: " + vms_dir)
 
     def import_vm(vms_dir, target_vm_name, max_retries=1):
-        """Import the .ovf file into VirtualBox."""
         logger.info(f"Starting to import VM {target_vm_name}...")
         command = (
             f"VBoxManage import {os.path.abspath(os.path.join(vms_dir, original_vm_name, original_vm_name + '.ovf'))} "
@@ -139,7 +133,6 @@ def _install_vm(vm_name, vms_dir, downloaded_file_name, original_vm_name="Ubuntu
                     return False
                 
     def configure_vm_network(vm_name, interface_name=None):
-        # Config of bridged network
         command = f'VBoxManage modifyvm "{vm_name}" --nic1 bridged'
         result = subprocess.run(command, shell=True, text=True, capture_output=True, encoding="utf-8",
                                     errors='ignore')
@@ -170,40 +163,9 @@ def _install_vm(vm_name, vms_dir, downloaded_file_name, original_vm_name="Ubuntu
             logger.error(f"Failed to change to bridge adapter {interface_name}: {result.stderr}")
             return False
         
-        # # Config of NAT network
-        # command = f"VBoxManage natnetwork add --netname natnet --network {nat_network} --dhcp on"
-        # result = subprocess.run(command, shell=True, text=True, capture_output=True, encoding="utf-8",
-        #                             errors='ignore')
-        # if result.returncode == 0:
-        #     logger.info(f"Created NAT network {nat_network}.")
-        # else:
-        #     logger.error(f"Failed to create NAT network {nat_network}")
-        #     return False
-        # command = f"VBoxManage modifyvm {vm_name} --nic1 natnetwork"
-        # result = subprocess.run(command, shell=True, text=True, capture_output=True, encoding="utf-8",
-        #                             errors='ignore')
-        # command = f"VBoxManage modifyvm {vm_name} --natnet1 natnet"
-        # result = subprocess.run(command, shell=True, text=True, capture_output=True, encoding="utf-8",
-        #                             errors='ignore')
-        # if result.returncode == 0:
-        #     logger.info("Switched VM to the NAT network.")
-        # else:
-        #     logger.error("Failed to switch VM to the NAT network")
-        #     return False
-        # logger.info("Start to configure port forwarding...")
-        # command = f"VBoxManage modifyvm {vm_name} --natpf1 'server,tcp,,5000,,5000'"
-        # result = subprocess.run(command, shell=True, text=True, capture_output=True, encoding="utf-8",
-        #                     errors='ignore')
-        # if result.returncode == 0:
-        #     logger.info("Successfully created port forwarding rule.")
-        #     return True
-        # logger.error("Failed to create port forwarding rule.")
-        # return False
-
 
     vm_path = os.path.join(vms_dir, vm_name, vm_name + ".vbox")
 
-    # Execute the function to download and unzip the VM, and update the vm metadata
     if not os.path.exists(vm_path):
         __download_and_unzip_vm()
         import_vm(vms_dir, vm_name)
@@ -212,7 +174,6 @@ def _install_vm(vm_name, vms_dir, downloaded_file_name, original_vm_name="Ubuntu
     else:
         logger.info(f"Virtual machine exists: {vm_path}")
 
-    # Start the virtual machine
     def start_vm(vm_name, max_retries=20):
         command = f'VBoxManage startvm "{vm_name}" --type headless'
 
@@ -251,12 +212,10 @@ def _install_vm(vm_name, vms_dir, downloaded_file_name, original_vm_name="Ubuntu
         else:
             return False
 
-    # Function used to check whether the virtual machine is ready
     def download_screenshot(vm_name):
         ip = get_vm_ip(vm_name)
         url = f"http://{ip}:5000/screenshot"
         try:
-            # max trey times 1, max timeout 1
             response = requests.get(url, timeout=(10, 10))
             if response.status_code == 200:
                 return True
@@ -266,7 +225,6 @@ def _install_vm(vm_name, vms_dir, downloaded_file_name, original_vm_name="Ubuntu
             logger.error(f"Error detail: {str(e)}")
         return False
 
-    # Try downloading the screenshot until successful
     while not download_screenshot(vm_name):
         logger.info("Check whether the virtual machine is ready...")
         time.sleep(RETRY_INTERVAL)
@@ -296,7 +254,6 @@ def _install_vm(vm_name, vms_dir, downloaded_file_name, original_vm_name="Ubuntu
                     logger.error("Maximum retry attempts reached, failed to create snapshot.")
                     return False
 
-    # Create a snapshot of the virtual machine
     if create_vm_snapshot(vm_name, max_retries=MAX_RETRY_TIMES):
         return vm_path
     else:
@@ -310,7 +267,7 @@ class VirtualBoxVMManager(VMManager):
         self.initialize_registry()
 
     def initialize_registry(self):
-        with self.lock:  # Locking during initialization
+        with self.lock:
             if not os.path.exists(self.registry_path):
                 with open(self.registry_path, 'w') as file:
                     file.write('')
@@ -371,8 +328,7 @@ class VirtualBoxVMManager(VMManager):
             self._check_and_clean(vms_dir)
 
     def _check_and_clean(self, vms_dir):
-        with self.lock:  # Lock when cleaning up the registry and vms_dir
-            # Check and clean on the running vms, detect the released ones and mark then as 'free'
+        with self.lock:
             active_pids = {p.pid for p in psutil.process_iter()}
             new_lines = []
             vm_paths = []
@@ -398,14 +354,11 @@ class VirtualBoxVMManager(VMManager):
             with open(self.registry_path, 'w') as file:
                 file.writelines(new_lines)
 
-            # Check and clean on the files inside vms_dir, delete the unregistered ones
             os.makedirs(vms_dir, exist_ok=True)
             vm_names = os.listdir(vms_dir)
             for vm_name in vm_names:
-                # skip the downloaded .zip file
                 if vm_name == DOWNLOADED_FILE_NAME:
                     continue
-                # Skip the .DS_Store file on macOS
                 if vm_name == ".DS_Store":
                     continue
 
@@ -424,7 +377,7 @@ class VirtualBoxVMManager(VMManager):
             return self._list_free_vms()
 
     def _list_free_vms(self):
-        with self.lock:  # Lock when reading the registry
+        with self.lock:
             free_vms = []
             with open(self.registry_path, 'r') as file:
                 lines = file.readlines()
@@ -435,8 +388,6 @@ class VirtualBoxVMManager(VMManager):
             return free_vms
 
     def get_vm_path(self, os_type, region=None, screen_size=(1920, 1080), **kwargs):
-        # Note: screen_size parameter is ignored for VirtualBox provider
-        # but kept for interface consistency with other providers
         if os_type != "Ubuntu":
             raise ValueError("Only support Ubuntu for now.")
 
@@ -449,10 +400,8 @@ class VirtualBoxVMManager(VMManager):
         with self.lock:
             free_vms_paths = self._list_free_vms()
             if len(free_vms_paths) == 0:
-                # No free virtual machine available, generate a new one
                 allocation_needed = True
             else:
-                # Choose the first free virtual machine
                 chosen_vm_path = free_vms_paths[0][0]
                 self._occupy_vm(chosen_vm_path, os.getpid())
                 return chosen_vm_path

@@ -3,30 +3,13 @@ import ctypes
 import ctypes.util
 import numpy as np
 
-# A helper function to convert data from Xlib to byte array.
 import struct, array
 
-# Define ctypes version of XFixesCursorImage structure.
 PIXEL_DATA_PTR = ctypes.POINTER(ctypes.c_ulong)
 Atom = ctypes.c_ulong
 
 
 class XFixesCursorImage(ctypes.Structure):
-    """
-    See /usr/include/X11/extensions/Xfixes.h
-
-    typedef struct {
-        short	    x, y;
-        unsigned short  width, height;
-        unsigned short  xhot, yhot;
-        unsigned long   cursor_serial;
-        unsigned long   *pixels;
-    if XFIXES_MAJOR >= 2
-        Atom	    atom;	/* Version >= 2 only */
-        const char	*name;	/* Version >= 2 only */
-    endif
-    } XFixesCursorImage;
-    """
     _fields_ = [('x', ctypes.c_short),
                 ('y', ctypes.c_short),
                 ('width', ctypes.c_ushort),
@@ -53,19 +36,16 @@ class Xcursor:
             except KeyError:
                 raise Exception("$DISPLAY not set.")
 
-        # XFixeslib = ctypes.CDLL('libXfixes.so')
         XFixes = ctypes.util.find_library("Xfixes")
         if not XFixes:
             raise Exception("No XFixes library found.")
         self.XFixeslib = ctypes.cdll.LoadLibrary(XFixes)
 
-        # xlib = ctypes.CDLL('libX11.so.6')
         x11 = ctypes.util.find_library("X11")
         if not x11:
             raise Exception("No X11 library found.")
         self.xlib = ctypes.cdll.LoadLibrary(x11)
 
-        # Define ctypes' version of XFixesGetCursorImage function
         XFixesGetCursorImage = self.XFixeslib.XFixesGetCursorImage
         XFixesGetCursorImage.restype = ctypes.POINTER(XFixesCursorImage)
         XFixesGetCursorImage.argtypes = [ctypes.POINTER(Display)]
@@ -76,12 +56,11 @@ class Xcursor:
         XOpenDisplay.argtypes = [ctypes.c_char_p]
 
         if not self.display:
-            self.display = self.xlib.XOpenDisplay(display)  # (display) or (None)
+            self.display = self.xlib.XOpenDisplay(display)
 
     def argbdata_to_pixdata(self, data, len):
         if data == None or len < 1: return None
 
-        # Create byte array
         b = array.array('b', b'\x00' * 4 * len)
 
         offset, i = 0, 0
@@ -100,18 +79,15 @@ class Xcursor:
         return b
 
     def getCursorImageData(self):
-        # Call the function. Read data of cursor/mouse-pointer.
         cursor_data = self.XFixesGetCursorImage(self.display)
 
         if not (cursor_data and cursor_data[0]):
             raise Exception("Cannot read XFixesGetCursorImage()")
 
-        # Note: cursor_data is a pointer, take cursor_data[0]
         return cursor_data[0]
 
     def getCursorImageArray(self):
         data = self.getCursorImageData()
-        # x, y = data.x, data.y
         height, width = data.height, data.width
 
         bytearr = self.argbdata_to_pixdata(data.pixels, height * width)
@@ -124,7 +100,6 @@ class Xcursor:
 
     def getCursorImageArrayFast(self):
         data = self.getCursorImageData()
-        # x, y = data.x, data.y
         height, width = data.height, data.width
 
         bytearr = ctypes.cast(data.pixels, ctypes.POINTER(ctypes.c_ulong * height * width))[0]

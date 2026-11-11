@@ -23,10 +23,8 @@ def process_epub(filename: str) -> List[str]:
 
     try:
         with zipfile.ZipFile(filename, "r") as z_f:
-            # Get list of all files in the zip archive
             zip_file_list = z_f.namelist()
             
-            # Process toc.ncx if it exists
             if "toc.ncx" in zip_file_list:
                 with z_f.open("toc.ncx") as in_f \
                         , open(os.path.join(base_dir, "toc.ncx"), "w") as out_f:
@@ -39,7 +37,6 @@ def process_epub(filename: str) -> List[str]:
             else:
                 logger.debug("toc.ncx not found in epub file: %s", filename)
             
-            # Process content.opf if it exists
             if "content.opf" in zip_file_list:
                 with z_f.open("content.opf") as in_f \
                         , open(os.path.join(base_dir, "content.opf"), "w") as out_f:
@@ -89,7 +86,6 @@ V = TypeVar("Value")
 
 
 def check_mp3_meta(result: str, meta: Dict[str, Dict[str, Union[str, V]]]) -> bool:
-    # checks using _match_value_to_rule
     if result is None:
         return 0.
 

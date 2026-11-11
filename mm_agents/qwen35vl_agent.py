@@ -21,7 +21,6 @@ MAX_RETRY_TIMES = int(os.getenv("OSWORLD_MAX_RETRY_TIMES", "5"))
 
 
 def process_image(image_bytes: bytes) -> str:
-    """Resize + re-encode screenshot and return base64 PNG."""
     image = Image.open(BytesIO(image_bytes))
     width, height = image.size
 
@@ -39,15 +38,6 @@ def process_image(image_bytes: bytes) -> str:
 
 
 class Qwen35VLAgent:
-    """
-    Lightweight Qwen3.5-VL agent.
-
-    Characteristics:
-    - OpenAI-compatible API only.
-    - XML tool-call output format.
-    - History truncation by `history_n`.
-    - Old screenshot folding by `image_max` / `fold_size`.
-    """
 
     COLLAPSED_SCREENSHOT_TEXT = "This screenshot has been collapsed."
 
@@ -124,14 +114,6 @@ class Qwen35VLAgent:
         )
 
     def _maybe_append_parse_feedback(self, user_content: List[Dict], step_num: int) -> None:
-        """If the reply that immediately preceded this turn failed to parse, tell
-        the model so it can correct the format instead of silently repeating it.
-
-        The turn at ``step_num`` shows ``self.screenshots[step_num - 1]``; the reply
-        that preceded that screenshot is ``self.responses[step_num - 2]``. A no-op
-        leaves the screen unchanged, so this is exactly where the model needs to
-        learn its last action was dropped.
-        """
         prev_idx = step_num - 2
         if 0 <= prev_idx < len(self.parse_errors) and self.parse_errors[prev_idx]:
             user_content.append(
@@ -375,10 +357,6 @@ class Qwen35VLAgent:
                 "max_tokens": self.max_tokens,
                 "top_p": self.top_p,
                 "temperature": self.temperature,
-                # QWEN35_TOOLS_API=1: also declare the tool via the tools API so serves
-                # running a tool-call parser return it structured in message.tool_calls
-                # (vllm>=0.26 with a parser silently swallows content-embedded
-                # <tool_call> blocks when the request declares no tools).
                 **({"tools": [tools_def]} if os.getenv("QWEN35_TOOLS_API") == "1" else {}),
             },
             self.model,
@@ -432,8 +410,6 @@ class Qwen35VLAgent:
                     return int(x * x_scale), int(y * y_scale)
                 return int(x), int(y)
             if self.coordinate_type == "normalized":
-                # Coordinates are fractions of the screen in [0, 1] (e.g. Kimi),
-                # so map straight to pixels. No /999 grid renormalization here.
                 return int(round(x * original_width)), int(round(y * original_height))
             x_scale = original_width / 999
             y_scale = original_height / 999
@@ -650,9 +626,6 @@ class Qwen35VLAgent:
 
     @staticmethod
     def _tool_calls_to_xml(tool_calls) -> str:
-        """Rebuild structured tool_calls into the <tool_call><function=...> XML text the
-        content-regex parser expects. List/dict args are re-serialized as JSON so
-        parse_xml_tool_call round-trips them via json.loads."""
         blocks = []
         for tc in tool_calls or []:
             fn = getattr(tc, "function", None)

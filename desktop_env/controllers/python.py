@@ -17,32 +17,23 @@ class PythonController:
                  pkgs_prefix: str = "import pyautogui; import time; pyautogui.FAILSAFE = False; {command}"):
         self.vm_ip = vm_ip
         self.http_server = f"http://{vm_ip}:{server_port}"
-        self.pkgs_prefix = pkgs_prefix  # fixme: this is a hacky way to execute python commands. fix it and combine it with installation of packages
+        self.pkgs_prefix = pkgs_prefix
         self.retry_times = 3
         self.retry_interval = 5
 
     @staticmethod
     def _is_valid_image_response(content_type: str, data: Optional[bytes]) -> bool:
-        """Quick validation for PNG/JPEG payload using magic bytes; Content-Type is advisory.
-        Returns True only when bytes look like a real PNG or JPEG.
-        """
         if not isinstance(data, (bytes, bytearray)) or not data:
             return False
-        # PNG magic
         if len(data) >= 8 and data[:8] == b"\x89PNG\r\n\x1a\n":
             return True
-        # JPEG magic
         if len(data) >= 3 and data[:3] == b"\xff\xd8\xff":
             return True
-        # If server explicitly marks as image, accept as a weak fallback (some environments strip magic)
         if content_type and ("image/png" in content_type or "image/jpeg" in content_type or "image/jpg" in content_type):
             return True
         return False
 
     def get_screenshot(self) -> Optional[bytes]:
-        """
-        Gets a screenshot from the server. With the cursor. None -> no screenshot or unexpected error.
-        """
 
         for attempt_idx in range(self.retry_times):
             try:
@@ -68,9 +59,6 @@ class PythonController:
         return None
 
     def get_accessibility_tree(self) -> Optional[str]:
-        """
-        Gets the accessibility tree from the server. None -> no accessibility tree or unexpected error.
-        """
 
         for _ in range(self.retry_times):
             try:
@@ -90,9 +78,6 @@ class PythonController:
         return None
 
     def get_terminal_output(self) -> Optional[str]:
-        """
-        Gets the terminal output from the server. None -> no terminal output or unexpected error.
-        """
 
         for _ in range(self.retry_times):
             try:
@@ -112,9 +97,6 @@ class PythonController:
         return None
 
     def get_file(self, file_path: str) -> Optional[bytes]:
-        """
-        Gets a file from the server.
-        """
 
         for _ in range(self.retry_times):
             try:
@@ -134,11 +116,6 @@ class PythonController:
         return None
 
     def execute_python_command(self, command: str) -> None:
-        """
-        Executes a python command on the server.
-        It can be used to execute the pyautogui commands, or... any other python command. who knows?
-        """
-        # command_list = ["python", "-c", self.pkgs_prefix.format(command=command)]
         command_list = ["python", "-c", self.pkgs_prefix.format(command=command)]
         payload = json.dumps({"command": command_list, "shell": False})
 
@@ -163,9 +140,6 @@ class PythonController:
         return None
     
     def run_python_script(self, script: str) -> Optional[Dict[str, Any]]:
-        """
-        Executes a python script on the server.
-        """
         payload = json.dumps({"code": script})
 
         for _ in range(self.retry_times):
@@ -187,14 +161,6 @@ class PythonController:
         return {"status": "error", "message": "Failed to execute command.", "output": "", "error": "Retry limit reached."}
     
     def run_bash_script(self, script: str, timeout: int = 30, working_dir: Optional[str] = None) -> Optional[Dict[str, Any]]:
-        """
-        Executes a bash script on the server.
-        
-        :param script: The bash script content (can be multi-line)
-        :param timeout: Execution timeout in seconds (default: 30)
-        :param working_dir: Working directory for script execution (optional)
-        :return: Dictionary with status, output, error, and returncode, or None if failed
-        """
         payload = json.dumps({
             "script": script,
             "timeout": timeout,
@@ -207,7 +173,7 @@ class PythonController:
                     self.http_server + "/run_bash_script", 
                     headers={'Content-Type': 'application/json'},
                     data=payload, 
-                    timeout=timeout + 100  # Add buffer to HTTP timeout
+                    timeout=timeout + 100
                 )
                 if response.status_code == 200:
                     result = response.json()
@@ -239,14 +205,9 @@ class PythonController:
         }
 
     def execute_action(self, action):
-        """
-        Executes an action on the server computer.
-        """
-        # Handle string actions
         if action in ['WAIT', 'FAIL', 'DONE']:
             return
         
-        # Handle dictionary actions
         if type(action) == dict and action.get('action_type') in ['WAIT', 'FAIL', 'DONE']:
             return
 
@@ -344,7 +305,6 @@ class PythonController:
                     f"pyautogui.dragTo({x}, {y}, duration=1.0, button='left', mouseDownUp=True)")
 
         elif action_type == "SCROLL":
-            # todo: check if it is related to the operating system, as https://github.com/TheDuckAI/DuckTrack/blob/main/ducktrack/playback.py pointed out
             if "dx" in parameters and "dy" in parameters:
                 dx = parameters["dx"]
                 dy = parameters["dy"]
@@ -362,9 +322,6 @@ class PythonController:
         elif action_type == "TYPING":
             if "text" not in parameters:
                 raise Exception(f"Unknown parameters: {parameters}")
-            # deal with special ' and \ characters
-            # text = parameters["text"].replace("\\", "\\\\").replace("'", "\\'")
-            # self.execute_python_command(f"pyautogui.typewrite('{text}')")
             text = parameters["text"]
             self.execute_python_command("pyautogui.typewrite({:})".format(repr(text)))
 
@@ -411,11 +368,7 @@ class PythonController:
         else:
             raise Exception(f"Unknown action type: {action_type}")
 
-    # Record video
     def start_recording(self):
-        """
-        Starts recording the screen.
-        """
 
         for _ in range(self.retry_times):
             try:
@@ -434,9 +387,6 @@ class PythonController:
         logger.error("Failed to start recording.")
 
     def end_recording(self, dest: str):
-        """
-        Ends recording the screen.
-        """
 
         for _ in range(self.retry_times):
             try:
@@ -458,17 +408,10 @@ class PythonController:
 
         logger.error("Failed to stop recording.")
 
-    # Additional info
     def get_vm_platform(self):
-        """
-        Gets the size of the vm screen.
-        """
         return self.execute_python_command("import platform; print(platform.system())")['output'].strip()
 
     def get_vm_screen_size(self):
-        """
-        Gets the size of the vm screen.
-        """
 
         for _ in range(self.retry_times):
             try:
@@ -488,9 +431,6 @@ class PythonController:
         return None
 
     def get_vm_window_size(self, app_class_name: str):
-        """
-        Gets the size of the vm app window.
-        """
 
         for _ in range(self.retry_times):
             try:
@@ -510,9 +450,6 @@ class PythonController:
         return None
 
     def get_vm_wallpaper(self):
-        """
-        Gets the wallpaper of the vm.
-        """
 
         for _ in range(self.retry_times):
             try:
@@ -532,9 +469,6 @@ class PythonController:
         return None
 
     def get_vm_desktop_path(self) -> Optional[str]:
-        """
-        Gets the desktop path of the vm.
-        """
 
         for _ in range(self.retry_times):
             try:
@@ -554,9 +488,6 @@ class PythonController:
         return None
 
     def get_vm_directory_tree(self, path) -> Optional[Dict[str, Any]]:
-        """
-        Gets the directory tree of the vm.
-        """
         payload = json.dumps({"path": path})
 
         for _ in range(self.retry_times):

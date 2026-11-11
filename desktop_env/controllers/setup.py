@@ -24,17 +24,16 @@ from desktop_env.evaluators.metrics.utils import compare_urls
 from desktop_env.providers.aws.proxy_pool import get_global_proxy_pool, init_proxy_pool, ProxyInfo
 
 import dotenv
-# Load environment variables from .env file
 dotenv.load_dotenv()
 
 
-PROXY_CONFIG_FILE = os.getenv("PROXY_CONFIG_FILE", "evaluation_examples/settings/proxy/dataimpulse.json")  # Default proxy config file
+PROXY_CONFIG_FILE = os.getenv("PROXY_CONFIG_FILE", "evaluation_examples/settings/proxy/dataimpulse.json")
 
 logger = logging.getLogger("desktopenv.setup")
 
 FILE_PATH = os.path.dirname(os.path.abspath(__file__))
 
-init_proxy_pool(PROXY_CONFIG_FILE)  # initialize the global proxy pool
+init_proxy_pool(PROXY_CONFIG_FILE)
 
 MAX_RETRIES = 20
 
@@ -56,19 +55,7 @@ class SetupController:
         self.cache_dir = cache_dir
 
     def setup(self, config: List[Dict[str, Any]], use_proxy: bool = False)-> bool:
-        """
-        Args:
-            config (List[Dict[str, Any]]): list of dict like {str: Any}. each
-              config dict has the structure like
-                {
-                    "type": str, corresponding to the `_{:}_setup` methods of
-                      this class
-                    "parameters": dict like {str, Any} providing the keyword
-                      parameters
-                }
-        """  
         self.use_proxy = use_proxy
-        # make sure connection can be established
         logger.info(f"try to connect {self.http_server}")
         retry = 0
         while retry < MAX_RETRIES:
@@ -89,8 +76,6 @@ class SetupController:
             config_type: str = cfg["type"]
             parameters: Dict[str, Any] = cfg["parameters"]
 
-            # Assumes all the setup the functions should follow this name
-            # protocol
             setup_function: str = "_{:}_setup".format(config_type)
             assert hasattr(self, setup_function), f'Setup controller cannot find init function {setup_function}'
             
@@ -108,14 +93,6 @@ class SetupController:
         return True
 
     def _download_setup(self, files: List[Dict[str, str]]):
-        """
-        Args:
-            files (List[Dict[str, str]]): files to download. lisf of dict like
-              {
-                "url": str, the url to download
-                "path": str, the path on the VM to store the downloaded file
-              }
-        """
         for f in files:
             url: str = f["url"]
             path: str = f["path"]
@@ -133,10 +110,9 @@ class SetupController:
                 for i in range(max_retries):
                     try:
                         logger.info(f"Download attempt {i+1}/{max_retries} for {url}")
-                        response = requests.get(url, stream=True, timeout=300)  # Add 5 minute timeout
+                        response = requests.get(url, stream=True, timeout=300)
                         response.raise_for_status()
                         
-                        # Get file size if available
                         total_size = int(response.headers.get('content-length', 0))
                         if total_size > 0:
                             logger.info(f"File size: {total_size / (1024*1024):.2f} MB")
@@ -147,7 +123,7 @@ class SetupController:
                                 if chunk:
                                     f.write(chunk)
                                     downloaded_size += len(chunk)
-                                    if total_size > 0 and downloaded_size % (1024*1024) == 0:  # Log every MB
+                                    if total_size > 0 and downloaded_size % (1024*1024) == 0:
                                         progress = (downloaded_size / total_size) * 100
                                         logger.info(f"Download progress: {progress:.1f}%")
                         
@@ -158,7 +134,6 @@ class SetupController:
                     except requests.RequestException as e:
                         logger.error(
                             f"Failed to download {url} caused by {e}. Retrying... ({max_retries - i - 1} attempts left)")
-                        # Clean up partial download
                         if os.path.exists(cache_path):
                             os.remove(cache_path)
                 if not downloaded:
@@ -171,11 +146,10 @@ class SetupController:
             headers = {"Content-Type": form.content_type}
             logger.debug(form.content_type)
 
-            # send request to server to upload file
             try:
                 logger.info(f"Uploading {os.path.basename(path)} to VM at {path}")
                 logger.debug("REQUEST ADDRESS: %s", self.http_server + "/setup" + "/upload")
-                response = requests.post(self.http_server + "/setup" + "/upload", headers=headers, data=form, timeout=600)  # 10 minute timeout for upload
+                response = requests.post(self.http_server + "/setup" + "/upload", headers=headers, data=form, timeout=600)
                 if response.status_code == 200:
                     logger.info(f"File uploaded successfully: {path}")
                     logger.debug("Upload response: %s", response.text)
@@ -187,14 +161,6 @@ class SetupController:
                 raise
 
     def _upload_file_setup(self, files: List[Dict[str, str]]):
-        """
-        Args:
-            files (List[Dict[str, str]]): files to download. lisf of dict like
-              {
-                "local_path": str, the local path to the file to upload
-                "path": str, the path on the VM to store the downloaded file
-              }
-        """
         for f in files:
             local_path: str = f["local_path"]
             path: str = f["path"]
@@ -219,7 +185,6 @@ class SetupController:
                     )
                     logger.debug("REQUEST ADDRESS: %s", self.http_server + "/setup" + "/upload")
 
-                    # Open the file inside each attempt to ensure fresh stream position
                     with open(local_path, "rb") as fp:
                         form = MultipartEncoder({
                             "file_path": path,
@@ -228,7 +193,6 @@ class SetupController:
                         headers = {"Content-Type": form.content_type}
                         logger.debug(form.content_type)
 
-                        # Explicit connect/read timeout to avoid hanging forever
                         response = requests.post(
                             self.http_server + "/setup" + "/upload",
                             headers=headers,
@@ -250,7 +214,6 @@ class SetupController:
                     last_error = e
                     logger.error(f"Upload attempt {attempt + 1} failed for {path}: {e}")
 
-                # Exponential backoff between retries
                 if attempt < max_retries - 1:
                     time.sleep(2 ** attempt)
 
@@ -266,7 +229,6 @@ class SetupController:
             'Content-Type': 'application/json'
         }
 
-        # send request to server to change wallpaper
         try:
             response = requests.post(self.http_server + "/setup" + "/change_wallpaper", headers=headers, data=payload)
             if response.status_code == 200:
@@ -288,12 +250,9 @@ class SetupController:
             'Content-Type': 'application/json'
         }
 
-        # send request to server to open file
         try:
-            # The server-side call is now blocking and can take time.
-            # We set a timeout that is slightly longer than the server's timeout (1800s).
             response = requests.post(self.http_server + "/setup" + "/open_file", headers=headers, data=payload, timeout=1810)
-            response.raise_for_status()  # This will raise an exception for 4xx and 5xx status codes
+            response.raise_for_status()
             logger.info("Command executed successfully: %s", response.text)
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to open file '{path}'. An error occurred while trying to send the request or the server responded with an error: {e}")
@@ -308,7 +267,7 @@ class SetupController:
             command = command.split()
             
         if command[0] == "google-chrome" and self.use_proxy:
-            command.append("--proxy-server=http://127.0.0.1:18888")  # Use the proxy server set up by _proxy_setup
+            command.append("--proxy-server=http://127.0.0.1:18888")
 
         payload = json.dumps({"command": command, "shell": shell})
         headers = {"Content-Type": "application/json"}
@@ -410,17 +369,6 @@ class SetupController:
             check_interval: float = 1.0,
             shell: bool = False
     ):
-        """Execute command with verification of results
-        
-        Args:
-            command: Command to execute
-            verification: Dict with verification criteria:
-                - window_exists: Check if window with this name exists
-                - command_success: Execute this command and check if it succeeds
-            max_wait_time: Maximum time to wait for verification
-            check_interval: Time between verification checks
-            shell: Whether to use shell
-        """
         if not command:
             raise Exception("Empty command to launch.")
 
@@ -460,16 +408,10 @@ class SetupController:
         time.sleep(seconds)
 
     def _act_setup(self, action_seq: List[Union[Dict[str, Any], str]]):
-        # TODO
         raise NotImplementedError()
 
     def _replay_setup(self, trajectory: str):
-        """
-        Args:
-            trajectory (str): path to the replay trajectory file
-        """
 
-        # TODO
         raise NotImplementedError()
 
     def _activate_window_setup(self, window_name: str, strict: bool = False, by_class: bool = False):
@@ -481,7 +423,6 @@ class SetupController:
             'Content-Type': 'application/json'
         }
 
-        # send request to server to open file
         try:
             response = requests.post(self.http_server + "/setup" + "/activate_window", headers=headers, data=payload)
             if response.status_code == 200:
@@ -500,7 +441,6 @@ class SetupController:
             'Content-Type': 'application/json'
         }
 
-        # send request to server to open file
         try:
             response = requests.post(self.http_server + "/setup" + "/close_window", headers=headers, data=payload)
             if response.status_code == 200:
@@ -511,11 +451,6 @@ class SetupController:
             logger.error("An error occurred while trying to send the request: %s", e)
 
     def _proxy_setup(self, client_password: str = ""):
-        """Setup system-wide proxy configuration using proxy pool
-        
-        Args:
-            client_password (str): Password for sudo operations, defaults to "password"
-        """
         retry = 0
         while retry < MAX_RETRIES:
             try:
@@ -529,7 +464,6 @@ class SetupController:
             if retry == MAX_RETRIES:
                 return False
             
-        # Get proxy from global proxy pool
         proxy_pool = get_global_proxy_pool()
         current_proxy = proxy_pool.get_next_proxy()
         
@@ -537,26 +471,22 @@ class SetupController:
             logger.error("No proxy available from proxy pool")
             raise Exception("No proxy available from proxy pool")
         
-        # Format proxy URL
         proxy_url = proxy_pool._format_proxy_url(current_proxy)
         logger.info(f"Setting up proxy: {current_proxy.host}:{current_proxy.port}")
         
-        # Configure system proxy environment variables  
         proxy_commands = [
-            f"echo '{client_password}' | sudo -S bash -c \"apt-get update\"", ## TODO: remove this line if ami is already updated
-            f"echo '{client_password}' | sudo -S bash -c \"apt-get install -y tinyproxy\"", ## TODO: remove this line if tinyproxy is already installed
+            f"echo '{client_password}' | sudo -S bash -c \"apt-get update\"",
+            f"echo '{client_password}' | sudo -S bash -c \"apt-get install -y tinyproxy\"",
             f"echo '{client_password}' | sudo -S bash -c \"echo 'Port 18888' > /tmp/tinyproxy.conf\"",
             f"echo '{client_password}' | sudo -S bash -c \"echo 'Allow 127.0.0.1' >> /tmp/tinyproxy.conf\"",
             f"echo '{client_password}' | sudo -S bash -c \"echo 'Upstream http {current_proxy.username}:{current_proxy.password}@{current_proxy.host}:{current_proxy.port}' >> /tmp/tinyproxy.conf\"",
             
-            # CML commands to set environment variables for proxy
             f"echo 'export http_proxy={proxy_url}' >> ~/.bashrc",
             f"echo 'export https_proxy={proxy_url}' >> ~/.bashrc",
             f"echo 'export HTTP_PROXY={proxy_url}' >> ~/.bashrc",
             f"echo 'export HTTPS_PROXY={proxy_url}' >> ~/.bashrc",
         ]
 
-        # Execute all proxy configuration commands
         for cmd in proxy_commands:
             try:
                 self._execute_setup([cmd], shell=True)
@@ -567,7 +497,6 @@ class SetupController:
         
         self._launch_setup(["tinyproxy -c /tmp/tinyproxy.conf -d"], shell=True)
         
-        # Reload environment variables
         reload_cmd = "source /etc/environment"
         try:
             logger.info(f"Proxy setup completed successfully for {current_proxy.host}:{current_proxy.port}")
@@ -577,10 +506,9 @@ class SetupController:
             proxy_pool.mark_proxy_failed(current_proxy)
             raise
 
-    # Chrome setup
     def _chrome_open_tabs_setup(self, urls_to_open: List[str]):
         host = self.vm_ip
-        port = self.chromium_port  # fixme: this port is hard-coded, need to be changed from config file
+        port = self.chromium_port
 
         remote_debugging_url = f"http://{host}:{port}"
         logger.info("Connect to Chrome @: %s", remote_debugging_url)
@@ -593,11 +521,9 @@ class SetupController:
             with sync_playwright() as p:
                 try:
                     browser = p.chromium.connect_over_cdp(remote_debugging_url)
-                    # break
                 except Exception as e:
                     if attempt < 14:
                         logger.error(f"Attempt {attempt + 1}: Failed to connect, retrying. Error: {e}")
-                        # time.sleep(10)
                         continue
                     else:
                         logger.error(f"Failed to connect after multiple attempts: {e}")
@@ -608,30 +534,27 @@ class SetupController:
 
                 logger.info("Opening %s...", urls_to_open)
                 for i, url in enumerate(urls_to_open):
-                    # Use the first context (which should be the only one if using default profile)
                     if i == 0:
                         context = browser.contexts[0]
 
-                    page = context.new_page()  # Create a new page (tab) within the existing context
+                    page = context.new_page()
                     try:
                         page.goto(url, timeout=60000)
                     except:
-                        logger.warning("Opening %s exceeds time limit", url)  # only for human test
+                        logger.warning("Opening %s exceeds time limit", url)
                     logger.info(f"Opened tab {i + 1}: {url}")
 
                     if i == 0:
-                        # clear the default tab
                         default_page = context.pages[0]
                         default_page.close()
 
-                # Do not close the context or browser; they will remain open after script ends
                 return browser, context
 
     def _chrome_close_tabs_setup(self, urls_to_close: List[str]):
-        time.sleep(5)  # Wait for Chrome to finish launching
+        time.sleep(5)
 
         host = self.vm_ip
-        port = self.chromium_port  # fixme: this port is hard-coded, need to be changed from config file
+        port = self.chromium_port
 
         remote_debugging_url = f"http://{host}:{port}"
         with sync_playwright() as p:
@@ -652,41 +575,20 @@ class SetupController:
                 return
 
             for i, url in enumerate(urls_to_close):
-                # Use the first context (which should be the only one if using default profile)
                 if i == 0:
                     context = browser.contexts[0]
 
                 for page in context.pages:
 
-                    # if two urls are the same, close the tab
                     if compare_urls(page.url, url):
                         context.pages.pop(context.pages.index(page))
                         page.close()
                         logger.info(f"Closed tab {i + 1}: {url}")
                         break
 
-            # Do not close the context or browser; they will remain open after script ends
             return browser, context
 
-    # google drive setup
     def _googledrive_setup(self, **config):
-        """ Clean google drive space (eliminate the impact of previous experiments to reset the environment)
-        @args:
-            config(Dict[str, Any]): contain keys
-                settings_file(str): path to google drive settings file, which will be loaded by pydrive.auth.GoogleAuth()
-                operation(List[str]): each operation is chosen from ['delete', 'upload']
-                args(List[Dict[str, Any]]): parameters for each operation
-            different args dict for different operations:
-                for delete:
-                    query(str): query pattern string to search files or folder in google drive to delete, please refer to
-                        https://developers.google.com/drive/api/guides/search-files?hl=en about how to write query string.
-                    trash(bool): whether to delete files permanently or move to trash. By default, trash=false, completely delete it.
-                for mkdirs:
-                    path(List[str]): the path in the google drive to create folder
-                for upload:
-                    path(str): remote url to download file
-                    dest(List[str]): the path in the google drive to store the downloaded file
-        """
         settings_file = config.get('settings_file', 'evaluation_examples/settings/googledrive/settings.yml')
         gauth = GoogleAuth(settings_file=settings_file)
         drive = GoogleDrive(gauth)
@@ -697,7 +599,7 @@ class SetupController:
             for p in paths:
                 q = f'"{parent_id}" in parents and title = "{p}" and mimeType = "application/vnd.google-apps.folder" and trashed = false'
                 folder = drive.ListFile({'q': q}).GetList()
-                if len(folder) == 0:  # not exists, create it
+                if len(folder) == 0:
                     parents = {} if parent_id == 'root' else {'parents': [{'id': parent_id}]}
                     file = drive.CreateFile({'title': p, 'mimeType': 'application/vnd.google-apps.folder', **parents})
                     file.Upload()
@@ -707,8 +609,7 @@ class SetupController:
             return parent_id
 
         for oid, operation in enumerate(config['operation']):
-            if operation == 'delete':  # delete a specific file
-                # query pattern string, by default, remove all files/folders not in the trash to the trash
+            if operation == 'delete':
                 params = config['args'][oid]
                 q = params.get('query', '')
                 trash = params.get('trash', False)
@@ -716,7 +617,7 @@ class SetupController:
                 filelist: GoogleDriveFileList = drive.ListFile({'q': q_file}).GetList()
                 q_folder = f"( {q} ) and mimeType = 'application/vnd.google-apps.folder'" if q.strip() else "mimeType = 'application/vnd.google-apps.folder'"
                 folderlist: GoogleDriveFileList = drive.ListFile({'q': q_folder}).GetList()
-                for file in filelist:  # first delete file, then folder
+                for file in filelist:
                     file: GoogleDriveFile
                     if trash:
                         file.Trash()
@@ -724,7 +625,6 @@ class SetupController:
                         file.Delete()
                 for folder in folderlist:
                     folder: GoogleDriveFile
-                    # note that, if a folder is trashed/deleted, all files and folders in it will be trashed/deleted
                     if trash:
                         folder.Trash()
                     else:
@@ -753,14 +653,6 @@ class SetupController:
                 raise ValueError('[ERROR]: not implemented clean type!')
 
     def _login_setup(self, **config):
-        """ Login to a website with account and password information.
-        @args:
-            config(Dict[str, Any]): contain keys
-                settings_file(str): path to the settings file
-                platform(str): platform to login, implemented platforms include:
-                    googledrive: https://drive.google.com/drive/my-drive
-
-        """
         host = self.vm_ip
         port = self.chromium_port
 
@@ -786,11 +678,11 @@ class SetupController:
 
             if platform == 'googledrive':
                 url = 'https://drive.google.com/drive/my-drive'
-                page = context.new_page()  # Create a new page (tab) within the existing context
+                page = context.new_page()
                 try:
                     page.goto(url, timeout=60000)
                 except:
-                    logger.warning("Opening %s exceeds time limit", url)  # only for human test
+                    logger.warning("Opening %s exceeds time limit", url)
                 logger.info(f"Opened new page: {url}")
                 settings = json.load(open(config['settings_file']))
                 email, password = settings['email'], settings['password']
@@ -839,7 +731,6 @@ class SetupController:
                 raise requests.RequestException(f"Failed to download {db_url}. No retries left. Error: {e}")
         else:
             logger.info("File already exists in cache directory")
-        # copy a new history file in the tmp folder
         with tempfile.TemporaryDirectory() as tmp_dir:
             db_path = os.path.join(tmp_dir, "history_empty.sqlite")
             shutil.copy(cache_path, db_path)
@@ -851,7 +742,6 @@ class SetupController:
                 title = history_item['title']
                 visit_time = datetime.now() - timedelta(seconds=history_item['visit_time_from_now_in_seconds'])
 
-                # Chrome use ms from 1601-01-01 as timestamp
                 epoch_start = datetime(1601, 1, 1)
                 chrome_timestamp = int((visit_time - epoch_start).total_seconds() * 1000000)
 
@@ -877,7 +767,6 @@ class SetupController:
 
             controller = PythonController(self.vm_ip, self.server_port)
 
-            # get the path of the history file according to the platform
             os_type = controller.get_vm_platform()
 
             if os_type == 'Windows':
@@ -907,7 +796,6 @@ class SetupController:
             headers = {"Content-Type": form.content_type}
             logger.debug(form.content_type)
 
-            # send request to server to upload file
             try:
                 logger.debug("REQUEST ADDRESS: %s", self.http_server + "/setup" + "/upload")
                 response = requests.post(self.http_server + "/setup" + "/upload", headers=headers, data=form)

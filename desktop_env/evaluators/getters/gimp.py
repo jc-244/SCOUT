@@ -6,9 +6,6 @@ logger = logging.getLogger("desktopenv.getters.gimp")
 
 
 def get_gimp_config_file(env, config: Dict[str, str]):
-    """
-    Gets the config setting of GIMP.
-    """
 
     os_type = env.vm_platform
     print(os_type)
@@ -21,7 +18,6 @@ def get_gimp_config_file(env, config: Dict[str, str]):
                                                   f"'~/.config/GIMP/2.10/"
                                                   f"{config['file_name']}'))")[
                 'output'].strip()
-    # TODO: Add support for macOS and Windows
     else:
         raise Exception("Unsupported operating system", os_type)
 

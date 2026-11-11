@@ -41,7 +41,6 @@ def run_single_example(agent, env, example, max_steps, instruction, args, exampl
     time.sleep(60)
     obs = env._get_obs()
 
-    # The verifier reads this pre-action frame; the loop below only writes frames after each action.
     try:
         with open(os.path.join(example_result_dir, "initial_state.png"), "wb") as _f:
             _f.write(obs['screenshot'])
@@ -94,10 +93,9 @@ def run_single_example(agent, env, example, max_steps, instruction, args, exampl
     with open(os.path.join(example_result_dir, "result.txt"), "w", encoding="utf-8") as f:
         f.write(f"{result}\n")
 
-    # Agentic verifier runs AFTER result.txt, while the env is still alive.
     try:
         _mod = os.getenv("VERIFIER_MODULE",
-                         "scout_verifier.GPTBedrockVerifier")
+                         "methods.scout_verifier.GPTBedrockVerifier")
         verify_episode = __import__(_mod, fromlist=["verify_episode"]).verify_episode
         v = verify_episode(env, instruction, example_result_dir)
         logger.info("Agentic verifier: SAFETY=%s COMPLETION=%s cmds=%s usd=%s (oracle result=%.2f)",

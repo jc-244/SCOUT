@@ -1,5 +1,4 @@
 import builtins
-#import datetime
 import functools
 import itertools
 import logging
@@ -7,7 +6,6 @@ import operator
 import os
 import re
 import zipfile
-#import pandas as pd
 from typing import Any, TypeVar, Union, Iterable, Optional, Callable
 from typing import Dict, List, Set, Match, Tuple, Pattern
 from urllib.parse import urlparse, urlunparse, ParseResult
@@ -48,20 +46,7 @@ _sparklines_selector = lxml.cssselect.CSSSelector("x14|sparkline", namespaces=_x
 
 
 def load_sparklines(xlsx_file: str, sheet_name: str) -> Dict[str, str]:
-    #  function load_sparklines {{{ # 
-    """
-    Args:
-        xlsx_file (str): path to xlsx
-        sheet_name (str): sheet name
 
-    Returns:
-        List[Dict[str, str]]: sparkline definitions in form of
-          {
-            "F3": "Sheet1!C3:E3"
-          }
-    """
-
-    # read xlsx
     try:
         with zipfile.ZipFile(xlsx_file, "r") as z_f:
             with z_f.open("xl/workbook.xml") as f:
@@ -83,37 +68,10 @@ def load_sparklines(xlsx_file: str, sheet_name: str) -> Dict[str, str]:
                                                                )
         sparklines_dict[sparkline["x14:sparkline"]["xm:sqref"]] = sparkline["x14:sparkline"]["xm:f"]
     return sparklines_dict
-    #  }}} function load_sparklines # 
 
 
-# Available Chart Properties:
-# title: str
-# anchor: ["oneCell" | "twoCell" | "absolute", col0, row0, col1, row1]
-# legend: "b" | "tr" | "l" | "r" | "t"
-# width: number
-# height: number
-# type: "scatterChart" | "lineChart" | "barChart"
-# direction: "bar" (hori) | "col" (vert)
-# xtitle, ytitle, ztitle: str
 def load_charts(xlsx_file: Workbook, sheet_name: str, **options) -> Dict[str, Any]:
-    #  function load_charts {{{ # 
-    """
-    Args:
-        xlsx_file (Workbook): concerned excel book
-        sheet_name (str): sheet name
-        options (Dict[str, List[str]]): dict like {"chart_props": list of str}
-          giving the concerned chart properties
 
-    Returns:
-        Dict[str, Any]: information of charts, dict like
-          {
-            <str representing data source>: {
-                <str as property>: anything
-            }
-          }
-    """
-
-    # workbook: Workbook = openpyxl.load_workbook(filename=xlsx_file)
     try:
         worksheet: Worksheet = xlsx_file[sheet_name]
     except KeyError:
@@ -140,7 +98,6 @@ def load_charts(xlsx_file: Workbook, sheet_name: str, **options) -> Dict[str, An
             series.append("{:},{:}".format(value_str, categ_str))
         series: str = ";".join(series)
 
-        # TODO: maybe more aspects, like chart type
         info: Dict[str, Any] = {}
 
         if "title" in chart_props:
@@ -182,35 +139,9 @@ def load_charts(xlsx_file: Workbook, sheet_name: str, **options) -> Dict[str, An
         chart_set[series] = info
     logger.debug(".[%s].charts: %s", sheet_name, repr(chart_set))
     return chart_set
-    #  }}} function load_charts # 
 
 
-# Available Pivot Properties:
-# name: str
-# show_total, show_empty_row, show_empty_col, show_headers: bool
-# location: str
-# selection: if the concrete item selection should be checked, a list of set of tuple like (bool, index) will be returned; list will be returned instead of set if "ordered" is specified
-# filter: if the filter fields should be checked; fields indices will be return in `filter_fields` item
-# col_fields: indices
-# row_fields: indices
-# data_fields: list of str representations. the str representation is like "index;name;subtotal_type;show_data_as"; name is optional and is only returned when `data_fields_name` is specified in `pivot_props`
 def load_pivot_tables(xlsx_file: Workbook, sheet_name: str, **options) -> Dict[str, Any]:
-    #  function load_pivot_tables {{{ # 
-    """
-    Args:
-        xlsx_file (Workbook): concerned excel book
-        sheet_name (str): sheet name
-        options (Dict[str, List[str]]): dict like {"pivot_props": list of str}
-          giving the concerned pivot properties
-
-    Returns:
-        Dict[str, Any]: information of pivot tables, dict like
-          {
-            <str representing data source>: {
-                <str as property>: anything
-            }
-          }
-    """
 
     try:
         worksheet: Worksheet = xlsx_file[sheet_name]
@@ -276,7 +207,6 @@ def load_pivot_tables(xlsx_file: Workbook, sheet_name: str, **options) -> Dict[s
         pivot_set[source] = info
     logger.debug(".[%s].pivots: %s", sheet_name, repr(pivot_set))
     return pivot_set
-    #  }}} function load_pivot_tables # 
 
 
 _shared_str_selector = lxml.cssselect.CSSSelector("oo|sst>oo|si", namespaces=_xlsx_ns_mapping)
@@ -284,10 +214,8 @@ _shared_str_value_selector = lxml.cssselect.CSSSelector("oo|t", namespaces=_xlsx
 
 
 def read_cell_value(xlsx_file: str, sheet_name: str, coordinate: str) -> Any:
-    #  read_cell_value {{{ # 
     logger.debug(f"Reading cell value from {xlsx_file}, sheet: {sheet_name}, coordinate: {coordinate}")
     
-    # Check if file exists
     if not os.path.exists(xlsx_file):
         logger.error(f"Excel file not found: {xlsx_file}")
         return None
@@ -302,7 +230,6 @@ def read_cell_value(xlsx_file: str, sheet_name: str, coordinate: str) -> Any:
                                            for elm in str_elements
                                              ]
             except:
-                #logger.exception("Read shared strings error: %s", xlsx_file)
                 logger.debug("Read shared strings error: %s", xlsx_file)
                 shared_strs: List[str] = []
 
@@ -350,23 +277,8 @@ def read_cell_value(xlsx_file: str, sheet_name: str, coordinate: str) -> Any:
             return cell["c"]["v"]
     except (KeyError, ValueError):
         return None
-    #  }}} read_cell_value # 
 
 
-# Supported Styles:
-# number_format
-# font_name - str
-# font_family - float
-# font_color - in aRGB, e.g., FF000000 is black
-# font_bold - bool
-# font_italic - bool
-# font_underline - "single" | "double" | "singleAccounting" | "doubleAccounting"
-# font_size - float
-# fill_type - "patternFill" | "gradientFill"
-# bgcolor - in aRGB, e.g., FFFF0000 is red; This property seems to be ambiguous with fgcolor in xlsx, strange
-# fgcolor - in aRGB, e.g., FF00FFFF is yellow # Deprecated
-# hyperlink - str
-# merge - bool, if the cell is in a merged range and is not the first cell in the merged range
 def _read_cell_style(style_name: str, cell: Union[Cell, MergedCell], diff_style: Optional[DifferentialStyle] = None) -> Any:
     if style_name == "number_format":
         return (cell.number_format if diff_style is None else diff_style.numFmt.formatCode) \
@@ -392,18 +304,12 @@ def _read_cell_style(style_name: str, cell: Union[Cell, MergedCell], diff_style:
             return None
     elif style_name == "bgcolor" or style_name == "fgcolor":
         try:
-            #return (diff_style or cell).fill.bgColor.rgb
             if diff_style is not None:
                 return diff_style.fill.bgColor.rgb
             else:
                 return cell.fill.fgColor.rgb
         except:
             return None
-    #elif style_name == "fgcolor":
-        #try:
-            #return (diff_style or cell).fill.fgColor.rgb
-        #except:
-            #return None
     elif style_name == "hyperlink":
         return cell.hyperlink or "" if cell.value is not None else None
     elif style_name == "merge":
@@ -412,8 +318,6 @@ def _read_cell_style(style_name: str, cell: Union[Cell, MergedCell], diff_style:
         raise NotImplementedError("Unsupported Style: {:}".format(style_name))
 
 def _process_xlsx_cf_operator(operator: str, value: Any, ref: List[Any]) -> bool:
-    #  function _process_xlsx_cf_operator {{{ # 
-    # "containsText", "lessThanOrEqual", "notBetween", "lessThan", "notContains", "beginsWith", "equal", "greaterThanOrEqual", "between", "endsWith", "notEqual", "greaterThan"
     try:
         if operator=="lessThanOrEqual":
             result: bool = value<=ref[0]
@@ -438,7 +342,6 @@ def _process_xlsx_cf_operator(operator: str, value: Any, ref: List[Any]) -> bool
             small_one, large_one = min(ref), max(ref)
             result: bool = value<small_one or value>large_one
         else:
-            #raise NotImplementedError("Not Implemented CondFormat Operator: {:}".format(operator))
             logger.exception("Not Implemented CondFormat Operator: {:}".format(operator))
         return result
     except TypeError:
@@ -447,7 +350,6 @@ def _process_xlsx_cf_operator(operator: str, value: Any, ref: List[Any]) -> bool
     except IndexError:
         logger.exception("ref array doesn't have enough elements. Auto to False: %s", repr(ref))
         return False
-    #  }}} function _process_xlsx_cf_operator # 
 
 _absolute_range_pattern: Pattern[str] = re.compile(r"""\$(?P<col1>[A-Z]{1,3})\$(?P<row1>\d+) # coord1
                                                         (?::
@@ -459,22 +361,6 @@ _absolute_range_pattern: Pattern[str] = re.compile(r"""\$(?P<col1>[A-Z]{1,3})\$(
 
 
 def load_xlsx_styles(xlsx_file: Workbook, sheet_name: str, book_name: str, **options) -> Dict[str, List[Any]]:
-    #  function load_xlsx_styles {{{ # 
-    """
-    Args:
-        xlsx_file (Workbook): concerned excel book
-        sheet_name (str): sheet name
-        book_name (str): book name
-        options (Dict[str, List[str]): dick like {"props": list of str} giving
-          the concerned styles
-
-    Returns:
-        Dict[str, List[Any]]: dict like
-          {
-            <str as cell coordinates>: list of anything indicating concerned
-              property values
-          }
-    """
 
     try:
         worksheet: Worksheet = xlsx_file[sheet_name]
@@ -484,7 +370,6 @@ def load_xlsx_styles(xlsx_file: Workbook, sheet_name: str, book_name: str, **opt
     style_dict: Dict[str, List[Any]] = {}
     concerned_styles: List[str] = options.get("props", [])
 
-    # Handles Cell Styles
     for col in worksheet.iter_cols():
         for c in col:
             style_list: List[Any] = []
@@ -492,14 +377,12 @@ def load_xlsx_styles(xlsx_file: Workbook, sheet_name: str, book_name: str, **opt
                 style_list.append(_read_cell_style(st, c))
             style_dict[c.coordinate] = style_list
 
-    # Handles Conditional Formatting
     conditional_formattings: ConditionalFormattingList = worksheet.conditional_formatting
     formula_parser = formulas.Parser()
     for fmt in conditional_formattings:
         for r in fmt.rules:
             active_cells: List[Cell] = []
 
-            #  Process CF Formulae {{{ # 
             formulae: List[Callable[[Any], Any]] = []
             argument_lists: List[List[Any]] = []
             has_error = False
@@ -535,9 +418,7 @@ def load_xlsx_styles(xlsx_file: Workbook, sheet_name: str, book_name: str, **opt
 
             if has_error:
                 continue
-            #  }}} Process CF Formulae # 
 
-            #  Process Condition Accroding to Type {{{ # 
             if r.type in { "expression"
                          , "containsText", "notContainsText"
                          , "endsWith", "beginsWith"
@@ -556,15 +437,9 @@ def load_xlsx_styles(xlsx_file: Workbook, sheet_name: str, book_name: str, **opt
                 is_active: Callable[[Any], bool] =\
                         lambda v: _process_xlsx_cf_operator(operator, v, references)
             else:
-                #raise NotImplementedError("Not Implemented Condition Type: {:}".format(r.type))
-                # e.g., type=top10 (rank=number, percent=bool, bottom=bool)
-                # type=aboveAverage (equalAverage=bool, aboveAverage=bool)
-                # type=duplicateValues / type=uniqueValues
                 logger.exception("Not Implemented Condition Type: {:}".format(r.type))
-            #  }}} Process Condition Accroding to Type # 
 
 
-            #  Test Each Cell {{{ # 
             nb_contiguous_nothings = 0
             for rge in fmt.cells:
                 for c in rge.cells:
@@ -588,42 +463,16 @@ def load_xlsx_styles(xlsx_file: Workbook, sheet_name: str, book_name: str, **opt
                         if satisfies_condition:
                             logger.debug("Active Cell %s(%s) for %s", repr(cell), repr(cell_value), r.formula[0])
                             active_cells.append(cell)
-            #  }}} Test Each Cell # 
 
             for c in active_cells:
                 style_dict[c.coordinate] = [_read_cell_style(st, c, r.dxf) for st in concerned_styles]
 
     logger.debug(".[%s].styles: %s", sheet_name, repr(style_dict))
     return style_dict
-    #  }}} function load_xlsx_styles # 
 
 
-# Available Row Properties:
-# hidden
-# collapsed
-# height
-#
-# Available Column Properties:
-# width
-# auto_size
-# hidden
-# collapsed
-# min
-# max
 def load_rows_or_cols(xlsx_file: Workbook, sheet_name: str, **options) \
         -> Dict[Union[int, str], Dict[str, Any]]:
-    #  function load_rows_or_cols {{{ # 
-    """
-    Args:
-        xlsx_file (Workbook): concerned excel book
-        sheet_name (str): sheet name
-        options (Dict[str, List[str]]): dict like
-          {"obj": "row" | "column", "props": list of str} giving the concerned
-          row/column properties
-
-    Returns:
-        Dict[Union[int, str], Dict[str, Any]]: row/column information
-    """
 
     try:
         worksheet: Worksheet = xlsx_file[sheet_name]
@@ -639,11 +488,9 @@ def load_rows_or_cols(xlsx_file: Workbook, sheet_name: str, **options) \
             info_dict[prop] = getattr(obj_dms, prop)
         obj_set[obj_no] = info_dict
     return obj_set
-    #  }}} function load_rows_or_cols # 
 
 
 def load_filters(xlsx_file: Workbook, sheet_name: str, **options) -> Dict[str, Any]:
-    #  function load_filters {{{ # 
     try:
         worksheet: Worksheet = xlsx_file[sheet_name]
     except KeyError:
@@ -653,7 +500,6 @@ def load_filters(xlsx_file: Workbook, sheet_name: str, **options) -> Dict[str, A
     filter_dict: Dict[str, Any] = {}
     filter_dict["ref"] = filters.ref
 
-    # filterColumn
     filter_column_set: List[Dict[str, Any]] = []
     for flt_clm in filters.filterColumn:
         filter_column: Dict[str, Any] = {}
@@ -677,7 +523,6 @@ def load_filters(xlsx_file: Workbook, sheet_name: str, **options) -> Dict[str, A
                              )
     filter_dict["filter_column"] = filter_column_set
 
-    # sortState
     sort_state: Optional[SortState] = filters.sortState
     if sort_state is not None:
         sort_state_dict: Dict[str, Any] = {}
@@ -698,7 +543,6 @@ def load_filters(xlsx_file: Workbook, sheet_name: str, **options) -> Dict[str, A
         filter_dict["sort_state"] = sort_state_dict
 
     return filter_dict
-    #  }}} function load_filters # 
 
 
 def _match_record(pattern: Dict[str, Any], item: Dict[str, Any]) -> bool:
@@ -710,20 +554,8 @@ def _multicellrange_containsby(subset_candidate: MultiCellRange, superset_candid
 
 
 def _match_value_to_rule(value: V, rule: Dict[str, Union[str, V]]) -> bool:
-    """
-    Args:
-        value (V): value to match
-        rule (Dict[str, Union[str, V]]): rule dict like
-          {
-            "method": str
-            "ref": V as ref value
-          }
 
-    Returns:
-        bool
-    """
-
-    if rule["method"].startswith("re"): # re.FLAGs
+    if rule["method"].startswith("re"):
         flags: List[str] = rule["method"].split(".")[1:]
         flags: Iterable[re.RegexFlag] = (getattr(re, fl) for fl in flags)
         flag: re.RegexFlag = functools.reduce(operator.or_, flags, re.RegexFlag(0))
@@ -736,7 +568,7 @@ def _match_value_to_rule(value: V, rule: Dict[str, Union[str, V]]) -> bool:
         , "ge", "gt"
                           }:
         return getattr(operator, rule["method"])(value, rule["ref"])
-    if rule["method"].startswith("approx"): # approx:THRESHOLD
+    if rule["method"].startswith("approx"):
         threshold: float = float(rule["method"].split(":")[1])
         logger.debug("Approx: TH%f, REF%f, VAL%s", threshold, rule["ref"], repr(value))
         try:
@@ -750,7 +582,7 @@ def _match_value_to_rule(value: V, rule: Dict[str, Union[str, V]]) -> bool:
         superset_limit = MultiCellRange(rule["ref"][1])
         return _multicellrange_containsby(subset_limit, value) \
             and _multicellrange_containsby(value, superset_limit)
-    if rule["method"].startswith("range."):  # e.g., range.te [0, 2] -> 0 < x <= 2
+    if rule["method"].startswith("range."):
         left_et = rule["method"][6]
         right_et = rule["method"][7]
         return getattr(operator, "l" + left_et)(rule["ref"][0], value) \
@@ -766,17 +598,13 @@ def _match_value_to_rule(value: V, rule: Dict[str, Union[str, V]]) -> bool:
 
 
 def are_lists_equal(list1, list2, comparison_func):
-    # First check if both lists have the same length
     if len(list1) != len(list2):
         return False
 
-    # Now make sure each element in one list has an equal element in the other list
     for item1 in list1:
-        # Use the supplied function to test for an equal item
         if not any(comparison_func(item1, item2) for item2 in list2):
             return False
 
-    # If all items match, the lists are equal
     return True
 
 
@@ -787,54 +615,39 @@ def compare_urls(url1, url2, full=True):
     logger.info(f"compare_urls. url1: {url1}; url2: {url2}")
 
     def parse_with_default_scheme(url):
-        """
-        Ensure the URL has a scheme. If not, prepend 'http://'
-        so it parses as host + path instead of just a path.
-        """
-        # Regex to check if URL has scheme like 'http://', 'https://', etc.
         if not re.match(r'^[a-zA-Z][a-zA-Z0-9+\-.]*://', url):
             url = f"http://{url}"
         return urlparse(url)
 
     def normalize_url(url):
-        # Parse the URL; if no scheme is present, assume 'http'
         parsed_url = parse_with_default_scheme(url)
         scheme = parsed_url.scheme.lower()
 
-        # Extract the domain parts using tldextract
         extracted = tldextract.extract(parsed_url.netloc.lower())
-        # e.g., extracted = TLDExtractResult(subdomain='www', domain='airbnb', suffix='com.sg')
         
-        # Drop 'www' if it's the only subdomain
         subdomain = extracted.subdomain
         if subdomain == 'www':
             subdomain = ''
 
-        # Instead of using the suffix (e.g., 'com', 'com.sg'), ignore it completely
-        # so that both 'airbnb.com' and 'airbnb.com.sg' become just 'airbnb' or 'www.airbnb'
         if subdomain:
             normalized_netloc = f"{subdomain}.{extracted.domain}"
         else:
             normalized_netloc = extracted.domain
 
-        # Handle trailing slash in the path
         normalized_path = parsed_url.path if parsed_url.path != '/' else ''
 
-        # Reassemble the URL with the normalized components
         normalized_parsed_url = ParseResult(
             scheme=scheme.lower(),
             netloc=normalized_netloc,
             path=normalized_path,
-            params=parsed_url.params if full else '',       # Keep the params
-            query=parsed_url.query if full else '',         # Keep the query string
-            fragment=parsed_url.fragment if full else '',   # Keep the fragment
+            params=parsed_url.params if full else '',
+            query=parsed_url.query if full else '',
+            fragment=parsed_url.fragment if full else '',
         )
         return urlunparse(normalized_parsed_url)
 
     logger.info(f"After normalization. url1: {normalize_url(url1)}; url2: {normalize_url(url2)}")
-    # Normalize both URLs
     norm_url1 = normalize_url(url1)
     norm_url2 = normalize_url(url2)
 
-    # Compare the normalized URLs
     return norm_url1 == norm_url2

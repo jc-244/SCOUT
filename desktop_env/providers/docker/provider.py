@@ -33,14 +33,13 @@ class DockerProvider(Provider):
         self.chromium_port = None
         self.vlc_port = None
         self.container = None
-        self.environment = {"DISK_SIZE": "32G", "RAM_SIZE": "4G", "CPU_CORES": "4"}  # Modify if needed
+        self.environment = {"DISK_SIZE": "32G", "RAM_SIZE": "4G", "CPU_CORES": "4"}
 
         temp_dir = Path(os.getenv('TEMP') if platform.system() == 'Windows' else '/tmp')
         self.lock_file = temp_dir / "docker_port_allocation.lck"
         self.lock_file.parent.mkdir(parents=True, exist_ok=True)
 
     def _is_rootless_daemon(self) -> bool:
-        """Detect if current Docker daemon runs in rootless mode."""
         try:
             info = self.client.info()
             security_options = info.get("SecurityOptions") or []
@@ -50,7 +49,6 @@ class DockerProvider(Provider):
             return False
 
     def _get_ready_timeout(self, runtime_environment: dict, rootless_mode: bool) -> int:
-        """Get VM readiness timeout, with overrides for slow/rootless setups."""
         timeout = DEFAULT_READY_TIMEOUT
         if runtime_environment.get("KVM", "Y").upper().startswith("N"):
             timeout = SLOW_READY_TIMEOUT
@@ -59,11 +57,8 @@ class DockerProvider(Provider):
         return timeout
 
     def _get_used_ports(self):
-        """Get all currently used ports (both system and Docker)."""
-        # Get system ports
         system_ports = set(conn.laddr.port for conn in psutil.net_connections())
         
-        # Get Docker container ports
         docker_ports = set()
         for container in self.client.containers.list():
             ports = container.attrs['NetworkSettings']['Ports']
@@ -75,7 +70,6 @@ class DockerProvider(Provider):
         return system_ports | docker_ports
 
     def _get_available_port(self, start_port: int) -> int:
-        """Find next available port starting from start_port."""
         used_ports = self._get_used_ports()
         port = start_port
         while port < 65354:
@@ -85,7 +79,6 @@ class DockerProvider(Provider):
         raise PortAllocationError(f"No available ports found starting from {start_port}")
 
     def _wait_for_vm_ready(self, timeout: int = 300):
-        """Wait for VM to be ready by checking screenshot endpoint."""
         start_time = time.time()
         
         def check_screenshot():
@@ -107,12 +100,10 @@ class DockerProvider(Provider):
         raise TimeoutError("VM failed to become ready within timeout period")
 
     def start_emulator(self, path_to_vm: str, headless: bool, os_type: str):
-        # Use a single lock for all port allocation and container startup
         lock = FileLock(str(self.lock_file), timeout=LOCK_TIMEOUT)
         
         try:
             with lock:
-                # Allocate all required ports
                 self.vnc_port = self._get_available_port(8006)
                 self.server_port = self._get_available_port(5000)
                 self.chromium_port = self._get_available_port(9222)
@@ -121,7 +112,6 @@ class DockerProvider(Provider):
                 runtime_environment = dict(self.environment)
                 rootless_mode = self._is_rootless_daemon()
                 if rootless_mode:
-                    # Rootless mode cannot create bridge/NAT in this image reliably.
                     runtime_environment["NETWORK"] = "user"
                     runtime_environment["USER_PORTS"] = ROOTLESS_USER_PORTS
                     logger.info(
@@ -129,8 +119,6 @@ class DockerProvider(Provider):
                         f"with USER_PORTS={ROOTLESS_USER_PORTS}"
                     )
 
-                # Start container while still holding the lock
-                # Check if KVM is available
                 devices = []
                 kvm_path = "/dev/kvm"
                 if os.path.exists(kvm_path) and os.access(kvm_path, os.W_OK):
@@ -172,17 +160,15 @@ class DockerProvider(Provider):
             logger.info(f"Started container with ports - VNC: {self.vnc_port}, "
                        f"Server: {self.server_port}, Chrome: {self.chromium_port}, VLC: {self.vlc_port}")
 
-            # Wait for VM to be ready
             ready_timeout = self._get_ready_timeout(runtime_environment, rootless_mode)
             logger.info(f"Waiting for VM readiness (timeout={ready_timeout}s)")
             self._wait_for_vm_ready(timeout=ready_timeout)
 
         except Exception as e:
-            # Clean up if anything goes wrong
             if self.container:
                 try:
                     self.container.stop()
-                    self.container.remove(v=True)  # v=True: drop the anon OSWorld scratch volume too
+                    self.container.remove(v=True)
                 except:
                     pass
             raise e
@@ -199,13 +185,11 @@ class DockerProvider(Provider):
         self.stop_emulator(path_to_vm)
 
     def stop_emulator(self, path_to_vm: str, region=None, *args, **kwargs):
-        # Note: region parameter is ignored for Docker provider
-        # but kept for interface consistency with other providers
         if self.container:
             logger.info("Stopping VM...")
             try:
                 self.container.stop()
-                self.container.remove(v=True)  # v=True: drop the anon OSWorld scratch volume too
+                self.container.remove(v=True)
                 time.sleep(WAIT_TIME)
             except Exception as e:
                 logger.error(f"Error stopping container: {e}")

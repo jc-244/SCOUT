@@ -394,9 +394,6 @@ def get_unfinished(
                     continue
                 example_path = os.path.join(domain_path, example_id)
                 if os.path.isdir(example_path):
-                    # Finished means both the oracle score and the verdict are on disk: the
-                    # verdict is written after result.txt, so a verifier failure leaves only
-                    # the former, and that episode must run again.
                     files = os.listdir(example_path)
                     if "result.txt" not in files or "agentic_verdict.json" not in files:
                         for file in files:

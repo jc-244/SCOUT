@@ -29,7 +29,6 @@ class VolcengineProvider(Provider):
         configuration.sk = os.getenv('VOLCENGINE_SECRET_ACCESS_KEY')
         configuration.region = os.getenv('VOLCENGINE_REGION')
         configuration.client_side_validation = True
-        # set default configuration
         volcenginesdkcore.Configuration.set_default(configuration)
         return ECSApi()
 
@@ -37,7 +36,6 @@ class VolcengineProvider(Provider):
         logger.info("Starting Volcengine VM...")
 
         try:
-            # 检查实例状态
             instance_info = self.client.describe_instances(ecs_models.DescribeInstancesRequest(
                 instance_ids=[path_to_vm]
             ))
@@ -49,11 +47,9 @@ class VolcengineProvider(Provider):
                 return
 
             if status == 'STOPPED':
-                # 启动实例
                 self.client.start_instance(ecs_models.StartInstancesRequest(instance_ids=[path_to_vm]))
                 logger.info(f"Instance {path_to_vm} is starting...")
 
-                # 等待实例运行
                 for attempt in range(MAX_ATTEMPTS):
                     time.sleep(WAIT_DELAY)
                     instance_info = self.client.describe_instances(ecs_models.DescribeInstancesRequest(
@@ -108,7 +104,6 @@ class VolcengineProvider(Provider):
         logger.info("Saving Volcengine VM state...")
 
         try:
-            # 创建镜像
             response = self.client.create_image(ecs_models.CreateImageRequest(
                 snapshot_id=snapshot_name,
                 instance_id=path_to_vm,
@@ -125,19 +120,16 @@ class VolcengineProvider(Provider):
         logger.info(f"Reverting Volcengine VM to snapshot: {snapshot_name}...")
 
         try:
-            # 删除原实例
             self.client.delete_instance(ecs_models.DeleteInstanceRequest(
                 instance_id=path_to_vm,
             ))
             logger.info(f"Old instance {path_to_vm} has been deleted.")
 
-            # 创建实例
             new_instance_id = _allocate_vm()
 
             logger.info(f"New instance {new_instance_id} launched from image {snapshot_name}.")
             logger.info(f"Waiting for instance {new_instance_id} to be running...")
 
-            # 等待新实例运行
             while True:
                 instance_info = self.client.describe_instances(ecs_models.DescribeInstancesRequest(
                     instance_ids=[new_instance_id]
@@ -151,7 +143,6 @@ class VolcengineProvider(Provider):
 
             logger.info(f"Instance {new_instance_id} is ready.")
 
-            # 获取新实例的IP地址
             try:
                 instance_info = self.client.describe_instances(ecs_models.DescribeInstancesRequest(
                     instance_ids=[new_instance_id]

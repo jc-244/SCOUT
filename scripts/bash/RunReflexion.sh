@@ -4,11 +4,9 @@ cd "$(dirname "$0")/../.."
 
 export OPENAI_BASE_URL="${OPENAI_BASE_URL:-http://localhost:8000/v1}"
 export OPENAI_API_KEY="${OPENAI_API_KEY:-EMPTY}"
-# Without this, a serve running --tool-call-parser yields no actions and traj.jsonl is never written.
 export QWEN35_TOOLS_API=1
-# Keep the driver off the GPUs (easyocr grabs GPU 0 otherwise).
 export CUDA_VISIBLE_DEVICES=""
-export VERIFIER_MODULE="${VERIFIER_MODULE:-scout_verifier.QwenVerifier}"
+export VERIFIER_MODULE="${VERIFIER_MODULE:-methods.scout_verifier.QwenVerifier}"
 export VERIF_OPENAI_BASE_URL="${VERIF_OPENAI_BASE_URL:-http://localhost:8000/v1}"
 export GATED_MAX_RETRIES="${GATED_MAX_RETRIES:-2}"
 

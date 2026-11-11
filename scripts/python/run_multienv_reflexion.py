@@ -395,10 +395,6 @@ def get_unfinished(
                     continue
                 example_path = os.path.join(domain_path, example_id)
                 if os.path.isdir(example_path):
-                    # Gated layout: an episode is finished iff committed.json exists
-                    # (written only after the attempt loop ends). Anything else is a
-                    # half-run episode: wipe the whole episode dir (attempt_* subdirs
-                    # included) so it reruns from attempt 1.
                     if "committed.json" in os.listdir(example_path):
                         finished[domain].append(example_id)
                     else:

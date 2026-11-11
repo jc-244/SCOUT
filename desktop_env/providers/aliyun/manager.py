@@ -46,9 +46,6 @@ MAX_ATTEMPTS = 15
 
 
 def _allocate_vm(screen_size=(1920, 1080)):
-    """
-    Allocate a new Aliyun ECS instance
-    """
     assert screen_size == (1920, 1080), "Only 1920x1080 screen size is supported"
 
     config = open_api_models.Config(
@@ -82,21 +79,17 @@ def _allocate_vm(screen_size=(1920, 1080)):
                     f"Failed to terminate instance {instance_id} after {signal_name}: {str(cleanup_error)}"
                 )
 
-        # Restore original signal handlers
         signal.signal(signal.SIGINT, original_sigint_handler)
         signal.signal(signal.SIGTERM, original_sigterm_handler)
 
-        # Raise appropriate exception based on signal type
         if sig == signal.SIGINT:
             raise KeyboardInterrupt
         else:
-            # For SIGTERM, exit gracefully
             import sys
 
             sys.exit(0)
 
     try:
-        # Set up signal handlers for both SIGINT and SIGTERM
         signal.signal(signal.SIGINT, signal_handler)
         signal.signal(signal.SIGTERM, signal_handler)
 
@@ -104,24 +97,20 @@ def _allocate_vm(screen_size=(1920, 1080)):
             f"Creating new ECS instance in region {ALIYUN_REGION} with image {ALIYUN_IMAGE_ID}"
         )
 
-        # TTL configuration
         ttl_enabled = ENABLE_TTL
         ttl_minutes = DEFAULT_TTL_MINUTES
         ttl_seconds = max(0, int(ttl_minutes) * 60)
 
-        # Aliyun constraints: at least 30 minutes in the future, ISO8601 UTC, seconds must be 00
         now_utc = datetime.now(timezone.utc)
         min_eta = now_utc + timedelta(minutes=30)
         raw_eta = now_utc + timedelta(seconds=ttl_seconds)
         effective_eta = raw_eta if raw_eta > min_eta else min_eta
-        # round up to the next full minute, zero seconds
         effective_eta = (effective_eta + timedelta(seconds=59)).replace(second=0, microsecond=0)
         auto_release_str = effective_eta.strftime('%Y-%m-%dT%H:%M:%SZ')
         logger.info(
             f"TTL config: enabled={ttl_enabled}, minutes={ttl_minutes}, seconds={ttl_seconds}, ETA(UTC)={auto_release_str}"
         )
 
-        # Create instance request (attempt with auto_release_time first when TTL enabled)
         def _build_request(with_ttl: bool) -> ecs_models.RunInstancesRequest:
             kwargs = dict(
                 region_id=ALIYUN_REGION,
@@ -152,7 +141,6 @@ def _allocate_vm(screen_size=(1920, 1080)):
             request = _build_request(with_ttl=True)
             response = client.run_instances(request)
         except Exception as create_err:
-            # Retry without auto_release_time if creation-time TTL is rejected
             logger.warning(
                 f"RunInstances with auto_release_time failed: {create_err}. Retrying without TTL field..."
             )
@@ -168,7 +156,6 @@ def _allocate_vm(screen_size=(1920, 1080)):
         instance_id = instance_ids[0]
         logger.info(f"ECS instance {instance_id} created successfully")
 
-        # Wait for the instance to be running
         logger.info(f"Waiting for instance {instance_id} to be running...")
         _wait_for_instance_running(client, instance_id)
 
@@ -207,7 +194,6 @@ def _allocate_vm(screen_size=(1920, 1080)):
                 )
         raise
     finally:
-        # Restore original signal handlers
         signal.signal(signal.SIGINT, original_sigint_handler)
         signal.signal(signal.SIGTERM, original_sigterm_handler)
 
@@ -217,7 +203,6 @@ def _allocate_vm(screen_size=(1920, 1080)):
 def _wait_for_instance_running(
     client: ECSClient, instance_id: str, max_attempts: int = MAX_ATTEMPTS
 ):
-    """Wait for instance to reach Running state"""
     for _ in range(max_attempts):
         try:
             req = ecs_models.DescribeInstancesRequest(
@@ -250,7 +235,6 @@ def _wait_for_instance_running(
 
 
 def _wait_until_server_ready(public_ip: str):
-    """Wait until the server is ready"""
     for _ in range(MAX_ATTEMPTS):
         try:
             logger.info(f"Checking server status on {public_ip}...")
@@ -267,11 +251,6 @@ def _wait_until_server_ready(public_ip: str):
 
 
 class AliyunVMManager(VMManager):
-    """
-    Aliyun ECS VM Manager for managing virtual machines on Aliyun Cloud.
-
-    Aliyun ECS does not need to maintain a registry of VMs, as it can dynamically allocate and deallocate VMs.
-    """
 
     def __init__(self, **kwargs):
         self.initialize_registry()
@@ -310,7 +289,6 @@ class AliyunVMManager(VMManager):
         pass
 
     def get_vm_path(self, screen_size=(1920, 1080), **kwargs):
-        """Get a VM path (instance ID) for use"""
         logger.info(
             f"Allocating new ECS instance in region {ALIYUN_REGION} with screen size {screen_size}"
         )

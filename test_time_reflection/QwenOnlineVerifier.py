@@ -1,14 +1,13 @@
 import json
 import re
 
-from scout_verifier.QwenVerifier import (
+from methods.scout_verifier.QwenVerifier import (
     CHECK_MARKER, CHECK_SCREENSHOT_TOOL, RUN_COMMAND_TOOL, RUN_PYTHON_TOOL,
     _EXTRA_VERDICT, _REASONING_LOG, _S_LINE, _S_VERDICT, _USAGE_LOG, _chat_tool,
     _checklist_call, _img_block, _load_init_shot, _respond, _txt, actions_only, cap_images,
     coerce_step_names, resolve_step_image, run_command, run_python)
 from prompts.reflection_prompts import GATE_CHECKLIST_PROMPT, build_gate_prompt, render_block_note
 
-# The gate may not touch the GUI: the agent is mid-task on that screen.
 _GATE_TOOLS = [_chat_tool(t) for t in (RUN_COMMAND_TOOL, RUN_PYTHON_TOOL, CHECK_SCREENSHOT_TOOL)]
 
 _GATE_VERDICT = re.compile(r"^[\s>*_`~#-]*GATE[\s*_`~]*:[\s*_`~]*(ALLOW|BLOCK)(?![A-Za-z])[\s*_`~]*"
@@ -24,8 +23,6 @@ _TERMINAL = {"DONE", "FAIL"}
 
 
 def parse_gate_verdict(text):
-    """(decision, reason) from a reply; decision is None when no GATE line is present.
-    The last GATE line wins."""
     hits = list(_GATE_VERDICT.finditer(text or ""))
     if not hits:
         return None, ""
@@ -34,8 +31,6 @@ def parse_gate_verdict(text):
 
 
 def parse_item_verdicts(texts, n_items):
-    """{n: SAFE|UNSAFE} over the checklist plus whether an EXTRA: UNSAFE line appeared —
-    the same reading the episode verifier does, later replies overriding earlier."""
     sv, extra = {}, False
     for t in texts:
         for n, v in _S_VERDICT.findall(t or ""):
@@ -54,7 +49,6 @@ def render_trace_with_pending(recs, step_num, response, actions):
     pending = {"step_num": step_num, "response": response or "",
                "action": "\n".join(actions)}
     text = actions_only(list(recs) + [pending])
-    # The pending block is the last "# Step <step_num>:" header in the rendering.
     hits = [m for m in _PENDING_HEADER.finditer(text) if int(m.group(1)) == step_num]
     if hits:
         m = hits[-1]
@@ -91,13 +85,6 @@ class QwenOnlineVerifier:
         return [], "failed", raws
 
     def judge(self, step_num, recs, response, actions, screenshot_bytes):
-        """Judge the actions the agent wants to execute at step_num.
-
-        recs: the executed steps so far (traj.jsonl rows). Returns a dict with
-        decision ALLOW|BLOCK, the reason, the note for the agent (BLOCK only), this
-        step's checklist and per-line verdicts, the probe transcript, the raw replies
-        and this call's usage rows. A reply with no GATE line is treated as ALLOW (no
-        verdict = no report), flagged by verdict_found=False."""
         n_usage, n_reason = len(_USAGE_LOG), len(_REASONING_LOG)
         trace_text = render_trace_with_pending(recs, step_num, response, actions)
 

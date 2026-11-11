@@ -28,11 +28,9 @@ UBUNTU_ARM_URL = "https://huggingface.co/datasets/xlangai/ubuntu_osworld/resolve
 UBUNTU_X86_URL = "https://huggingface.co/datasets/xlangai/ubuntu_osworld/resolve/main/Ubuntu-x86.zip"
 WINDOWS_X86_URL = "https://huggingface.co/datasets/xlangai/windows_osworld/resolve/main/Windows-x86.zip"
 
-# Determine the platform and CPU architecture to decide the correct VM image to download
-# sometimes the system is 'Darwin' but the machine is x86-based.​​ 
 if platform.machine().lower() in ['amd64', 'x86_64']:
     URL = UBUNTU_X86_URL
-elif platform.system() == 'Darwin':  # macOS
+elif platform.system() == 'Darwin':
     URL = UBUNTU_ARM_URL
 else:
     raise Exception("Unsupported platform or architecture")
@@ -60,29 +58,24 @@ def generate_new_vm_name(vms_dir, os_type):
 
 
 def _update_vm(vmx_path, target_vm_name):
-    """Update the VMX file with the new VM name and other parameters, so that the VM can be started successfully without conflict with the original VM."""
     with update_lock:
         dir_path, vmx_file = os.path.split(vmx_path)
 
         def _generate_mac_address():
-            # VMware MAC address range starts with 00:0c:29
             mac = [0x00, 0x0c, 0x29,
                    random.randint(0x00, 0x7f),
                    random.randint(0x00, 0xff),
                    random.randint(0x00, 0xff)]
             return ':'.join(map(lambda x: "%02x" % x, mac))
 
-        # Backup the original file
         with open(vmx_path, 'r') as file:
             original_content = file.read()
 
-        # Generate new values
         new_uuid_bios = str(uuid.uuid4())
         new_uuid_location = str(uuid.uuid4())
         new_mac_address = _generate_mac_address()
-        new_vmci_id = str(random.randint(-2147483648, 2147483647))  # Random 32-bit integer
+        new_vmci_id = str(random.randint(-2147483648, 2147483647))
 
-        # Update the content
         updated_content = re.sub(r'displayName = ".*?"', f'displayName = "{target_vm_name}"', original_content)
         updated_content = re.sub(r'uuid.bios = ".*?"', f'uuid.bios = "{new_uuid_bios}"', updated_content)
         updated_content = re.sub(r'uuid.location = ".*?"', f'uuid.location = "{new_uuid_location}"', updated_content)
@@ -91,7 +84,6 @@ def _update_vm(vmx_path, target_vm_name):
                                  updated_content)
         updated_content = re.sub(r'vmci0.id = ".*?"', f'vmci0.id = "{new_vmci_id}"', updated_content)
 
-        # Write the updated content back to the file
         with open(vmx_path, 'w') as file:
             file.write(updated_content)
 
@@ -106,8 +98,6 @@ def _update_vm(vmx_path, target_vm_name):
             target_file = os.path.join(dir_path, f"{target_vm_name}.{ext}")
             os.rename(original_file, target_file)
 
-        # Update the dir_path to the target vm_name, only replace the last character
-        # Split the path into parts up to the last folder
         path_parts = dir_path.rstrip(os.sep).split(os.sep)
         path_parts[-1] = target_vm_name
         target_dir_path = os.sep.join(path_parts)
@@ -120,10 +110,8 @@ def _install_vm(vm_name, vms_dir, downloaded_file_name, os_type, original_vm_nam
     os.makedirs(vms_dir, exist_ok=True)
 
     def __download_and_unzip_vm():
-        # Download the virtual machine image
         logger.info("Downloading the virtual machine image...")
         downloaded_size = 0
-        # sometimes the system is 'Darwin' but the machine is x86-based.​​ 
         if os_type == "Ubuntu":
             if platform.machine().lower() in ['amd64', 'x86_64']:
                 URL = UBUNTU_X86_URL
@@ -133,7 +121,6 @@ def _install_vm(vm_name, vms_dir, downloaded_file_name, os_type, original_vm_nam
             if platform.machine().lower() in ['amd64', 'x86_64']:
                 URL = WINDOWS_X86_URL
         
-        # Check for HF_ENDPOINT environment variable and replace domain if set to hf-mirror.com
         hf_endpoint = os.environ.get('HF_ENDPOINT')
         if hf_endpoint and 'hf-mirror.com' in hf_endpoint:
             URL = URL.replace('huggingface.co', 'hf-mirror.com')
@@ -151,7 +138,6 @@ def _install_vm(vm_name, vms_dir, downloaded_file_name, os_type, original_vm_nam
 
             with requests.get(URL, headers=headers, stream=True) as response:
                 if response.status_code == 416:
-                    # This means the range was not satisfiable, possibly the file was fully downloaded
                     logger.info("Fully downloaded or the file size changed.")
                     break
 
@@ -177,9 +163,8 @@ def _install_vm(vm_name, vms_dir, downloaded_file_name, os_type, original_vm_nam
                         logger.error("Retrying...")
                     else:
                         logger.info("Download succeeds.")
-                        break  # Download completed successfully
+                        break
 
-        # Unzip the downloaded file
         logger.info("Unzipping the downloaded file...☕️")
         with zipfile.ZipFile(downloaded_file_path, 'r') as zip_ref:
             zip_ref.extractall(os.path.join(vms_dir, vm_name))
@@ -187,23 +172,20 @@ def _install_vm(vm_name, vms_dir, downloaded_file_name, os_type, original_vm_nam
 
     vm_path = os.path.join(vms_dir, vm_name, vm_name + ".vmx")
 
-    # Execute the function to download and unzip the VM, and update the vm metadata
     if not os.path.exists(vm_path):
         __download_and_unzip_vm()
         _update_vm(os.path.join(vms_dir, vm_name, original_vm_name + ".vmx"), vm_name)
     else:
         logger.info(f"Virtual machine exists: {vm_path}")
 
-    # Determine the platform of the host machine and decide the parameter for vmrun
     def get_vmrun_type():
         if platform.system() == 'Windows' or platform.system() == 'Linux':
             return '-T ws'
-        elif platform.system() == 'Darwin':  # Darwin is the system name for macOS
+        elif platform.system() == 'Darwin':
             return '-T fusion'
         else:
             raise Exception("Unsupported operating system")
 
-    # Start the virtual machine
     def start_vm(vm_path, max_retries=20):
         command = f'vmrun {get_vmrun_type()} start "{vm_path}" nogui'
         for attempt in range(max_retries):
@@ -244,11 +226,9 @@ def _install_vm(vm_name, vms_dir, downloaded_file_name, os_type, original_vm_nam
     if not vm_ip:
         raise ValueError("Error encountered during installation, please rerun the code for retrying.")
 
-    # Function used to check whether the virtual machine is ready
     def download_screenshot(ip):
         url = f"http://{ip}:5000/screenshot"
         try:
-            # max trey times 1, max timeout 1
             response = requests.get(url, timeout=(10, 10))
             if response.status_code == 200:
                 return True
@@ -259,9 +239,7 @@ def _install_vm(vm_name, vms_dir, downloaded_file_name, os_type, original_vm_nam
             sleep(RETRY_INTERVAL)
         return False
 
-    # Try downloading the screenshot until successful
     while not download_screenshot(vm_ip):
-        # Try to get the IP again in case it has changed
         vm_ip = get_vm_ip(vm_path)
         logger.info("Check whether the virtual machine is ready...")
 
@@ -284,7 +262,6 @@ def _install_vm(vm_name, vms_dir, downloaded_file_name, os_type, original_vm_nam
                     logger.error("Maximum retry attempts reached, failed to create snapshot.")
                     return False
 
-    # Create a snapshot of the virtual machine
     if create_vm_snapshot(vm_path, max_retries=MAX_RETRY_TIMES):
         return vm_path
     else:
@@ -298,7 +275,7 @@ class VMwareVMManager(VMManager):
         self.initialize_registry()
 
     def initialize_registry(self):
-        with self.lock:  # Locking during initialization
+        with self.lock:
             if not os.path.exists(self.registry_path):
                 with open(self.registry_path, 'w') as file:
                     file.write('')
@@ -359,8 +336,7 @@ class VMwareVMManager(VMManager):
             self._check_and_clean(vms_dir)
 
     def _check_and_clean(self, vms_dir):
-        with self.lock:  # Lock when cleaning up the registry and vms_dir
-            # Check and clean on the running vms, detect the released ones and mark then as 'free'
+        with self.lock:
             active_pids = {p.pid for p in psutil.process_iter()}
             new_lines = []
             vm_paths = []
@@ -386,14 +362,11 @@ class VMwareVMManager(VMManager):
             with open(self.registry_path, 'w') as file:
                 file.writelines(new_lines)
 
-            # Check and clean on the files inside vms_dir, delete the unregistered ones
             os.makedirs(vms_dir, exist_ok=True)
             vm_names = os.listdir(vms_dir)
             for vm_name in vm_names:
-                # skip the downloaded .zip file
                 if vm_name == DOWNLOADED_FILE_NAME:
                     continue
-                # Skip the .DS_Store file on macOS
                 if vm_name == ".DS_Store":
                     continue
 
@@ -412,7 +385,7 @@ class VMwareVMManager(VMManager):
             return self._list_free_vms()
 
     def _list_free_vms(self):
-        with self.lock:  # Lock when reading the registry
+        with self.lock:
             free_vms = []
             with open(self.registry_path, 'r') as file:
                 lines = file.readlines()
@@ -423,8 +396,6 @@ class VMwareVMManager(VMManager):
             return free_vms
 
     def get_vm_path(self, os_type, region=None, screen_size=(1920, 1080), **kwargs):
-        # Note: screen_size parameter is ignored for VMware provider
-        # but kept for interface consistency with other providers
         with self.lock:
             if not VMwareVMManager.checked_and_cleaned:
                 VMwareVMManager.checked_and_cleaned = True
@@ -434,10 +405,8 @@ class VMwareVMManager(VMManager):
         with self.lock:
             free_vms_paths = self._list_free_vms()
             if len(free_vms_paths) == 0:
-                # No free virtual machine available, generate a new one
                 allocation_needed = True
             else:
-                # Choose the first free virtual machine
                 chosen_vm_path = free_vms_paths[0][0] 
                 self._occupy_vm(chosen_vm_path, os.getpid())
                 return chosen_vm_path

@@ -5,27 +5,22 @@ import dotenv
 import signal
 from datetime import datetime, timedelta, timezone
 
-# TTL configuration
 from desktop_env.providers.aws.config import ENABLE_TTL, DEFAULT_TTL_MINUTES, AWS_SCHEDULER_ROLE_ARN
 from desktop_env.providers.aws.scheduler_utils import schedule_instance_termination
 
 
 INSTANCE_TYPE = "t3.medium" 
 
-# Load environment variables from .env file
 dotenv.load_dotenv()
 
-# Ensure the AWS region is set in the environment
 if not os.getenv('AWS_REGION'):
     raise EnvironmentError("AWS_REGION must be set in the environment variables.")
 
-# Ensure the AWS subnet and security group IDs are set in the environment
 if not os.getenv('AWS_SUBNET_ID') or not os.getenv('AWS_SECURITY_GROUP_ID'):
     raise EnvironmentError("AWS_SUBNET_ID and AWS_SECURITY_GROUP_ID must be set in the environment variables.")
 
 from desktop_env.providers.base import VMManager
 
-# Import proxy-related modules only when needed
 try:
     from desktop_env.providers.aws.proxy_pool import get_global_proxy_pool, init_proxy_pool
     PROXY_SUPPORT_AVAILABLE = True
@@ -36,17 +31,12 @@ logger = logging.getLogger("desktopenv.providers.aws.AWSVMManager")
 logger.setLevel(logging.INFO)
 
 DEFAULT_REGION = "us-east-1"
-# todo: Add doc for the configuration of image, security group and network interface
-# todo: public the AMI images
 IMAGE_ID_MAP = {
     "us-east-1": {
         (1920, 1080): "ami-0d23263edb96951d8",
-        # For CoACT-1, uncomment to use the following AMI
-        # (1920, 1080): "ami-0b505e9d0d99ba88c"
     },
     "ap-east-1": {
         (1920, 1080): "ami-06850864d18fad836"
-        # Please transfer AMI by yourself from AWS us-east-1 for CoACT-1
     }
 }
 
@@ -74,20 +64,16 @@ def _allocate_vm(region=DEFAULT_REGION, screen_size=(1920, 1080)):
             except Exception as cleanup_error:
                 logger.error(f"Failed to terminate instance {instance_id} after {signal_name}: {str(cleanup_error)}")
         
-        # Restore original signal handlers
         signal.signal(signal.SIGINT, original_sigint_handler)
         signal.signal(signal.SIGTERM, original_sigterm_handler)
         
-        # Raise appropriate exception based on signal type
         if sig == signal.SIGINT:
             raise KeyboardInterrupt
         else:
-            # For SIGTERM, exit gracefully
             import sys
             sys.exit(0)
     
     try:
-        # Set up signal handlers for both SIGINT and SIGTERM
         signal.signal(signal.SIGINT, signal_handler)
         signal.signal(signal.SIGTERM, signal_handler)
         
@@ -96,7 +82,6 @@ def _allocate_vm(region=DEFAULT_REGION, screen_size=(1920, 1080)):
         if not os.getenv('AWS_SUBNET_ID'):
             raise ValueError("AWS_SUBNET_ID is not set in the environment variables.")
 
-        # TTL configuration (cloud-init removed; use cloud-side scheduler only)
         ttl_enabled = ENABLE_TTL
         ttl_minutes = DEFAULT_TTL_MINUTES
         ttl_seconds = max(0, int(ttl_minutes) * 60)
@@ -124,11 +109,10 @@ def _allocate_vm(region=DEFAULT_REGION, screen_size=(1920, 1080)):
                 {
                     "DeviceName": "/dev/sda1", 
                     "Ebs": {
-                        # "VolumeInitializationRate": 300
-                        "VolumeSize": 30,  # Size in GB
-                        "VolumeType": "gp3",  # General Purpose SSD
+                        "VolumeSize": 30,
+                        "VolumeType": "gp3",
                         "Throughput": 1000,
-                        "Iops": 4000  # Adjust IOPS as needed
+                        "Iops": 4000
                     }
                 }
             ]
@@ -137,9 +121,7 @@ def _allocate_vm(region=DEFAULT_REGION, screen_size=(1920, 1080)):
         response = ec2_client.run_instances(**run_instances_params)
         instance_id = response['Instances'][0]['InstanceId']
 
-        # Create TTL schedule immediately after instance is created, to survive early interruptions
         try:
-            # Always attempt; helper resolves ARN via env or role name
             if ttl_enabled:
                 schedule_instance_termination(region, instance_id, ttl_seconds, AWS_SCHEDULER_ROLE_ARN, logger)
         except Exception as e:
@@ -178,7 +160,6 @@ def _allocate_vm(region=DEFAULT_REGION, screen_size=(1920, 1080)):
             ec2_client.terminate_instances(InstanceIds=[instance_id])
         raise
     finally:
-        # Restore original signal handlers
         signal.signal(signal.SIGINT, original_sigint_handler)
         signal.signal(signal.SIGTERM, original_sigterm_handler)
 
@@ -186,14 +167,7 @@ def _allocate_vm(region=DEFAULT_REGION, screen_size=(1920, 1080)):
 
 
 class AWSVMManager(VMManager):
-    """
-    AWS VM Manager for managing virtual machines on AWS.
-    
-    AWS does not need to maintain a registry of VMs, as it can dynamically allocate and deallocate VMs.
-    This class supports both regular VM allocation and proxy-enabled VM allocation.
-    """
     def __init__(self, **kwargs):
-        # self.lock = FileLock(".aws_lck", timeout=60)
         self.initialize_registry()
 
     def initialize_registry(self, **kwargs):

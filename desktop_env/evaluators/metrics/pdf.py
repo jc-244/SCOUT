@@ -2,7 +2,7 @@ import operator
 from typing import Any
 from typing import Dict
 
-import fitz  # PyMuPDF
+import fitz
 from pypdf import PdfReader
 
 

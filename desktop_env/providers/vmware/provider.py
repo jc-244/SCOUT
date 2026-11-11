@@ -18,7 +18,7 @@ def get_vmrun_type(return_list=False):
             return ['-T', 'ws']
         else:
             return '-T ws'
-    elif platform.system() == 'Darwin':  # Darwin is the system name for macOS
+    elif platform.system() == 'Darwin':
         if return_list:
             return ['-T', 'fusion']
         else:
@@ -88,18 +88,16 @@ class VMwareProvider(Provider):
         logger.info("Saving VMware VM state...")
         VMwareProvider._execute_command(
             ["vmrun"] + get_vmrun_type(return_list=True) + ["snapshot", path_to_vm, snapshot_name])
-        time.sleep(WAIT_TIME)  # Wait for the VM to save
+        time.sleep(WAIT_TIME)
 
     def revert_to_snapshot(self, path_to_vm: str, snapshot_name: str):
         logger.info(f"Reverting VMware VM to snapshot: {snapshot_name}...")
         VMwareProvider._execute_command(
             ["vmrun"] + get_vmrun_type(return_list=True) + ["revertToSnapshot", path_to_vm, snapshot_name])
-        time.sleep(WAIT_TIME)  # Wait for the VM to revert
+        time.sleep(WAIT_TIME)
         return path_to_vm
 
     def stop_emulator(self, path_to_vm: str, region=None, *args, **kwargs):
-        # Note: region parameter is ignored for VMware provider
-        # but kept for interface consistency with other providers
         logger.info("Stopping VMware VM...")
         VMwareProvider._execute_command(["vmrun"] + get_vmrun_type(return_list=True) + ["stop", path_to_vm])
-        time.sleep(WAIT_TIME)  # Wait for the VM to stop
+        time.sleep(WAIT_TIME)

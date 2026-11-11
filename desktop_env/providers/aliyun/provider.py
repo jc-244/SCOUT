@@ -24,8 +24,6 @@ class AliyunProvider(Provider):
         super().__init__(**kwargs)
         self.region = os.getenv("ALIYUN_REGION", "eu-central-1")
         self.client = self._create_client()
-        # Whether to use private IP instead of public IP. Default: enabled.
-        # Priority: explicit kwarg > env var ALIYUN_USE_PRIVATE_IP > default True
         env_use_private = os.getenv("ALIYUN_USE_PRIVATE_IP", "1").lower() in {"1", "true", "yes", "on"}
         kw_flag = kwargs.get("use_private_ip", None)
         self.use_private_ip = env_use_private if kw_flag is None else bool(kw_flag)
@@ -42,7 +40,6 @@ class AliyunProvider(Provider):
         logger.info("Starting Aliyun ECS instance...")
 
         try:
-            # Check the current state of the instance
             response = self._describe_instance(path_to_vm)
             if not response.body.instances.instance:
                 logger.error(f"Instance {path_to_vm} not found")
@@ -53,23 +50,19 @@ class AliyunProvider(Provider):
             logger.info(f"Instance {path_to_vm} current state: {state}")
 
             if state == "Running":
-                # If the instance is already running, skip starting it
                 logger.info(
                     f"Instance {path_to_vm} is already running. Skipping start."
                 )
                 return
 
             if state == "Stopped":
-                # Start the instance if it's currently stopped
                 req = ecs_models.StartInstanceRequest(instance_id=path_to_vm)
                 self.client.start_instance(req)
                 logger.info(f"Instance {path_to_vm} is starting...")
 
-                # Wait until the instance reaches 'Running' state
                 _wait_for_instance_running(self.client, path_to_vm)
                 logger.info(f"Instance {path_to_vm} is now running.")
             else:
-                # For all other states (Pending, Starting, etc.), log a warning
                 logger.warning(
                     f"Instance {path_to_vm} is in state '{state}' and cannot be started."
                 )
@@ -91,7 +84,6 @@ class AliyunProvider(Provider):
 
             instance = response.body.instances.instance[0]
 
-            # Get private and public IP addresses
             private_ip = ""
             public_ip = ""
 
@@ -112,7 +104,6 @@ class AliyunProvider(Provider):
             if hasattr(instance, "eip_address") and instance.eip_address:
                 public_ip = instance.eip_address.ip_address or public_ip
 
-            # Select which IP to use based on configuration
             ip_to_use = private_ip if (self.use_private_ip and private_ip) else public_ip
 
             if not ip_to_use:
@@ -171,23 +162,19 @@ class AliyunProvider(Provider):
         )
 
         try:
-            # Step 1: Retrieve the original instance details
             response = self._describe_instance(path_to_vm)
             if not response.body.instances.instance:
                 logger.error(f"Instance {path_to_vm} not found")
                 return
-            # Step 2: Delete the old instance
             req = ecs_models.DeleteInstancesRequest(
                 region_id=self.region, instance_id=[path_to_vm], force=True
             )
             self.client.delete_instances(req)
             logger.info(f"Old instance {path_to_vm} has been deleted.")
 
-            # Step 3: Launch a new instance from the snapshot image
             new_instance_id = _allocate_vm()
             logger.info(f"Instance {new_instance_id} is ready.")
 
-            # Get VNC access information
             self.get_ip_address(new_instance_id)
 
             return new_instance_id
@@ -217,7 +204,6 @@ class AliyunProvider(Provider):
     def _describe_instance(
         self, instance_id: str
     ) -> ecs_models.DescribeInstancesResponse:
-        """Get instance details"""
         req = ecs_models.DescribeInstancesRequest(
             region_id=self.region, instance_ids=UtilClient.to_jsonstring([instance_id])
         )

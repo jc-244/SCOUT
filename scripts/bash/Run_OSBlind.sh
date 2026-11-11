@@ -4,13 +4,10 @@ cd "$(dirname "$0")/../.."
 
 export OPENAI_BASE_URL="${OPENAI_BASE_URL:-http://localhost:8000/v1}"
 export OPENAI_API_KEY="${OPENAI_API_KEY:-EMPTY}"
-# Without this, a serve running --tool-call-parser yields no actions and traj.jsonl is never written.
 export QWEN35_TOOLS_API=1
-# Keep the driver off the GPUs (easyocr grabs GPU 0 otherwise).
 export CUDA_VISIBLE_DEVICES=""
-export VERIFIER_MODULE="${VERIFIER_MODULE:-scout_verifier.GPTBedrockVerifier}"
+export VERIFIER_MODULE="${VERIFIER_MODULE:-methods.scout_verifier.GPTBedrockVerifier}"
 
-# test_205.json = test_all.json (300) minus categories 08/09 (defanged URLs) and 12 (popup attack).
 python scripts/python/run_multienv_qwen35.py \
   --headless \
   --observation_type screenshot \

@@ -101,8 +101,7 @@ def fuzzy_match(result, rules) -> float:
 def fuzzy_place_math(result_file_path, rules) -> float:
     if result_file_path is None:
         return 0.
-    expect = rules["expected"]  # a list of possible answers
-    # read list.docx, and get all texts out, overlook blank lines, remove blanks before and after each line
+    expect = rules["expected"]
     doc = Document(result_file_path)
     words_list = []
     for para in doc.paragraphs:
@@ -120,18 +119,6 @@ def fuzzy_place_math(result_file_path, rules) -> float:
 
 
 def check_csv(result: str, rules: Dict[str, List[Dict[str, str]]]) -> float:
-    """
-    Args:
-        result (str): path to csv file
-        rules (Dict[str, List[Dict[str, str]]]): dict like
-          {
-            "expect": [{key: value}]
-            "unexpect": [{key: value}]
-          }
-
-    Returns:
-        float
-    """
 
     if result is None:
         return 0.
@@ -149,18 +136,6 @@ def check_csv(result: str, rules: Dict[str, List[Dict[str, str]]]) -> float:
 
 
 def check_list(result: str, rules: Dict[str, List[str]]) -> float:
-    """
-    Args:
-        result (str): path to list file
-        rules (Dict[str, List[str]]): dict like
-          {
-            "expect": list of str as regexes
-            "unexpect": list of str as regexes
-          }
-
-    Returns:
-        float
-    """
 
     if result is None:
         return 0.
@@ -214,26 +189,6 @@ _accessibility_ns_map = {
 }
 
 def check_accessibility_tree(result: str, rules: List[Dict[str, Any]], osname: str = "ubuntu") -> float:
-    """
-    Args:
-        result (str): XML of GNOME Accessibility Tree
-        rules (List[Dict[str, Any]]): list of dict like
-          {
-            "selectors": list of str as CSS selectors, will be connected by ", "
-              to form a composite selector. Only one from `selectors` and
-              `xpath` is needed. If both are present, `xpath` takes the
-              priority.
-            "xpath": str as xpath. Only one from `selectors` and `xpath` is
-              needed. If both are present, `xpath` takes the priority.
-            "text": str as the expected text content of the selected element.
-            "exact": bool specifying whether exact match or fuzzy match should
-              be performed. defaults to True.
-          }
-        osname (str): "ubuntu" | "windows" | "macos". "ubuntu" by default.
-
-    Returns:
-        float
-    """
 
     a11y_ns_map = _accessibility_ns_map[osname]
 
@@ -267,9 +222,6 @@ def check_accessibility_tree(result: str, rules: List[Dict[str, Any]], osname: s
     return float(total_match_score)
 
 
-# def check_existence(result: str, *args) -> float:
-# return 1. - (result is None)
-
 def run_sqlite3(result: str, rules: Dict[str, Any]) -> float:
     connection: sqlite3.Connection = sqlite3.connect(result)
     cursor: sqlite3.Cursor = connection.execute(rules["sql"])
@@ -277,31 +229,11 @@ def run_sqlite3(result: str, rules: Dict[str, Any]) -> float:
 
 
 def check_json(result: str, rules: Dict[str, List[Dict[str, Union[List[str], str]]]], is_yaml: bool = False) -> float:
-    """
-    Args:
-        result (str): path to json file
-        rules (Dict[str, List[Dict[str, Union[List[str], str]]]]): dict like
-          {
-            "expect": [
-                {
-                    "key": list of str
-                    "method": str
-                    "ref": something
-                }
-            ],
-            "unexpect": <the same as `expect`
-          }
-        is_yaml (bool): yaml rather than json
-
-    Returns:
-        float
-    """
 
     if result is None:
         logger.warning("Result file path is None, returning 0.0")
         return 0.
         
-    # Check if file exists
     if not os.path.exists(result):
         logger.warning(f"Result file does not exist: {result}, returning 0.0")
         return 0.
@@ -310,7 +242,6 @@ def check_json(result: str, rules: Dict[str, List[Dict[str, Union[List[str], str
         with open(result, 'r', encoding='utf-8') as f:
             if is_yaml:
                 try:
-                    # Use SafeLoader instead of Loader for better security and error handling
                     result_data: Dict[str, Any] = yaml.safe_load(f)
                     if result_data is None:
                         logger.warning(f"YAML file {result} is empty or contains only null values, returning 0.0")
@@ -380,19 +311,12 @@ def check_json(result: str, rules: Dict[str, List[Dict[str, Union[List[str], str
 
 
 def check_direct_json_object(result, rules) -> float:
-    """
-    One of the most commonly used function to evalute.
-    Compare two json objects directly.
-    """
     logger.info(f"[DEBUG] check_direct_json_object called with result: {result}")
     logger.info(f"[DEBUG] check_direct_json_object called with rules: {rules}")
     
     if isinstance(result, str):
-        # remove blanks before and after result
         result = result.strip()
-        # replace all ' with "
         result = result.replace("'", '"')
-        # load json object
         result = json.loads(result)
         
     logger.info(f"[DEBUG] Processed result: {result}")
@@ -401,7 +325,6 @@ def check_direct_json_object(result, rules) -> float:
         logger.info("[DEBUG] Result is None, returning 0.0")
         return 0.
     
-    # Check if expected value contains evaluation failure indicator
     try:
         expected_json = rules.get("expected", {})
         if expected_json:
@@ -451,7 +374,6 @@ def check_direct_json_object(result, rules) -> float:
                     expected_value_list = expected_json.get(key)
                     logger.info(f"[DEBUG] Checking list key '{key}': expected_list={expected_value_list}, actual='{result.get(key)}'")
                     for each_expected_value in expected_value_list:
-                        # Handle both list and string cases
                         if isinstance(result.get(key), list) and each_expected_value in result.get(key):
                             flag = 1
                             logger.info(f"[DEBUG] Found expected value '{each_expected_value}' in result list for key '{key}'")
@@ -484,8 +406,6 @@ def compare_time_in_speedtest_results(speedtest_result_path, time_diff):
     if not speedtest_result_path:
         return 0
 
-    # open the speedtest results file(csv)
-    #date_col = None
     try:
         with open(speedtest_result_path, 'r') as f:
             for i, line in enumerate(f):
@@ -494,7 +414,6 @@ def compare_time_in_speedtest_results(speedtest_result_path, time_diff):
                     break
             now_date_time = datetime.datetime.now().strftime('%H:%M')
             date_time = date[-5:]
-            # compare the date time with the current date time, if time diff less than time_diff para, then return true
             if not abs((datetime.datetime.strptime(date_time, '%H:%M') - datetime.datetime.strptime(now_date_time,
                                                                                                     '%H:%M')).total_seconds()) / 60 < int(
                 time_diff):
@@ -513,7 +432,6 @@ def is_included_all_json_objects(gold_file_path, result_file_path):
     print(gold_file_path)
     print("result_file_path: ")
     print(result_file_path)
-    # two json file, check if all the key-value pair in gold_file_path is included in result_file_path
     with open(gold_file_path, 'r') as f:
         gold_json = json.load(f)
     with open(result_file_path, 'r') as fr:
@@ -532,7 +450,6 @@ def is_gold_text_included_in_pdf(pdf_file_path, gold_text_path):
     print(gold_text_path)
     print("pdf_file_path: ")
     print(pdf_file_path)
-    # gold file is a json file, we need to check all the value in json are included in pdf file.
     with open(gold_text_path, 'r') as f:
         gold_json = json.load(f)
     with pdfplumber.open(pdf_file_path) as pdf:
@@ -552,7 +469,6 @@ def is_gold_text_included_in_pdf(pdf_file_path, gold_text_path):
 
 
 def file_contains(file_path, config):
-    # file_path ends with .txt
     if not file_path:
         return 0.
     try:
@@ -569,18 +485,15 @@ def file_contains(file_path, config):
 
 
 def check_line_number(file_path, line_number):
-    # check if file_path exists
     if file_path is None or not os.path.isfile(file_path):
         return 0.
     timeRegex = "([01]\\d|2[0-3]):[0-5]\\d:([0-5]\\d|60)"
-    # check if the string that matches the timeRegex in this txt file equals to line_number["expected"]
     try:
         with open(file_path, 'r') as f:
             line_count = 0
             for line in f:
                 if re.search(timeRegex, line):
                     line_count += 1
-        # if line_count equals to line_number["expected"], return 1, else return 0
         return 1 if line_count == int(line_number["expected"]) else 0
     except:
         logger.debug("check_line_number: file not found or not readable")
@@ -591,10 +504,8 @@ def compare_terminal_and_txt(txt_file_path, terminal_output):
     if not txt_file_path or not terminal_output:
         return 0
 
-    # read txt file content
     with open(txt_file_path, 'r') as f:
         txt_file_content = f.read()
-    # compare terminal output with txt file content
     return 1 if terminal_output == txt_file_content else 0
 
 
@@ -603,21 +514,11 @@ def compare_python_pure_text(py_file_path, gold_file_path):
         return 0.0
 
     def _normalize(text):
-        """
-        Minimal normalization - only handle basic formatting:
-        - Skip obvious file metadata (encoding, shebang) at the beginning
-        - Normalize whitespace and indentation
-        - Remove empty lines
-        
-        This preserves any content that shouldn't be there (like markdown)
-        so it can be detected as an error.
-        """
         lines = text.splitlines()
         result_lines = []
         i = 0
         
-        # Only skip obvious metadata at the very beginning
-        while i < len(lines) and i < 3:  # Check only first 3 lines
+        while i < len(lines) and i < 3:
             stripped = lines[i].strip()
             
             if (stripped.startswith('#!') or
@@ -629,12 +530,11 @@ def compare_python_pure_text(py_file_path, gold_file_path):
             
             break
         
-        # Process all remaining lines with minimal filtering
         while i < len(lines):
             line = lines[i]
             stripped = line.strip()
             
-            if stripped:  # Keep all non-empty lines
+            if stripped:
                 normalized = line.expandtabs(4).rstrip()
                 result_lines.append(normalized)
             
@@ -648,7 +548,6 @@ def compare_python_pure_text(py_file_path, gold_file_path):
         with open(gold_file_path, 'r', encoding='utf-8') as file2:
             gold_content = file2.read()
         
-        # Apply different normalization strategies
         user_normalized = _normalize(user_content)
         gold_normalized = _normalize(gold_content)
         

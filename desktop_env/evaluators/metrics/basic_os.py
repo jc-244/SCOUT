@@ -1,6 +1,4 @@
 def check_gnome_favorite_apps(apps_str: str, rule):
-    # parse the string like "['thunderbird.desktop', 'vim.desktop', 'google-chrome.desktop']"
-    # to a list of strings
     apps = eval(apps_str)
 
     expected_apps = rule["expected"]
@@ -15,16 +13,6 @@ def check_gnome_favorite_apps(apps_str: str, rule):
 
 
 def is_utc_0(timedatectl_output):
-    """
-    Format as:
-    Local time: Thu 2024-01-25 12:56:06 WET
-           Universal time: Thu 2024-01-25 12:56:06 UTC
-                 RTC time: Thu 2024-01-25 12:56:05
-                Time zone: Atlantic/Faroe (WET, +0000)
-System clock synchronized: yes
-              NTP service: inactive
-          RTC in local TZ: no
-    """
 
     utc_line = timedatectl_output.split("\n")[3]
 
@@ -61,7 +49,6 @@ def is_in_vm_clickboard(config, terminal_output):
     print("config: ")
     print(config)
     expected_results = config["expected"]
-    # check if terminal_output has expected results
     if not isinstance(expected_results, list):
         return 1 if expected_results in terminal_output else 0
     else:

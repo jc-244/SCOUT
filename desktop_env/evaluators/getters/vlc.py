@@ -9,9 +9,6 @@ logger = logging.getLogger("desktopenv.getters.vlc")
 
 
 def get_vlc_playing_info(env, config: Dict[str, str]):
-    """
-    Gets the current playing information from VLC's HTTP interface.
-    """
 
     host = env.vm_ip
     port = env.vlc_port
@@ -33,13 +30,9 @@ def get_vlc_playing_info(env, config: Dict[str, str]):
 
 
 def get_vlc_config(env, config: Dict[str, str]):
-    """
-    Reads the VLC configuration file to check setting.
-    """
 
     os_type = env.vm_platform
 
-    # fixme: depends on how we config and install the vlc in virtual machine, need to be aligned and double-checked
     if os_type == "Linux":
         config_path = \
             env.controller.execute_python_command("import os; print(os.path.expanduser('~/.config/vlc/vlcrc'))")[
@@ -62,8 +55,6 @@ def get_vlc_config(env, config: Dict[str, str]):
 
 
 def get_default_video_player(env, config: dict):
-    """ Gets the default application for a category or file extension.
-    """
 
     os_type = env.vm_platform
 

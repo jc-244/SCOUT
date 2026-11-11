@@ -11,7 +11,6 @@ logger.setLevel(logging.INFO)
 
 WAIT_TIME = 3
 
-# Note: Windows will not add command VBoxManage to PATH by default. Please add the folder where VBoxManage executable is in (Default should be "C:\Program Files\Oracle\VirtualBox" for Windows) to PATH.
 
 class VirtualBoxProvider(Provider):
     @staticmethod
@@ -29,11 +28,9 @@ class VirtualBoxProvider(Provider):
             output = output.decode()
             output = output.splitlines()
             if path_to_vm.endswith('.vbox'):
-                # Load and parse the XML content from the file
                 tree = ET.parse(path_to_vm)
                 root = tree.getroot()
                 
-                # Find the <Machine> element and retrieve its 'uuid' attribute
                 machine_element = root.find('.//{http://www.virtualbox.org/}Machine')
                 if machine_element is not None:
                     uuid = machine_element.get('uuid')[1:-1]
@@ -56,8 +53,6 @@ class VirtualBoxProvider(Provider):
             
 
     def start_emulator(self, path_to_vm: str, headless: bool, os_type: str = None, *args, **kwargs):
-        # Note: os_type parameter is ignored for VirtualBox provider
-        # but kept for interface consistency with other providers
         logger.info("Starting VirtualBox VM...")
 
         while True:
@@ -104,21 +99,19 @@ class VirtualBoxProvider(Provider):
         logger.info("Saving VirtualBox VM state...")
         uuid = VirtualBoxProvider._get_vm_uuid(path_to_vm)
         VirtualBoxProvider._execute_command(["VBoxManage", "snapshot", uuid, "take", snapshot_name])
-        time.sleep(WAIT_TIME)  # Wait for the VM to save
+        time.sleep(WAIT_TIME)
 
     def revert_to_snapshot(self, path_to_vm: str, snapshot_name: str):
         logger.info(f"Reverting VirtualBox VM to snapshot: {snapshot_name}...")
         uuid = VirtualBoxProvider._get_vm_uuid(path_to_vm)
         VirtualBoxProvider._execute_command(["VBoxManage", "controlvm", uuid, "savestate"])
-        time.sleep(WAIT_TIME)  # Wait for the VM to stop
+        time.sleep(WAIT_TIME)
         VirtualBoxProvider._execute_command(["VBoxManage", "snapshot", uuid, "restore", snapshot_name])
-        time.sleep(WAIT_TIME)  # Wait for the VM to revert
+        time.sleep(WAIT_TIME)
         return path_to_vm
 
     def stop_emulator(self, path_to_vm: str, region=None, *args, **kwargs):
-        # Note: region parameter is ignored for VirtualBox provider
-        # but kept for interface consistency with other providers
         logger.info("Stopping VirtualBox VM...")
         uuid = VirtualBoxProvider._get_vm_uuid(path_to_vm)
         VirtualBoxProvider._execute_command(["VBoxManage", "controlvm", uuid, "savestate"])
-        time.sleep(WAIT_TIME)  # Wait for the VM to stop
+        time.sleep(WAIT_TIME)

@@ -11,7 +11,6 @@ def get_vscode_config(env, config: Dict[str, Any]) -> str:
     os_type = env.vm_platform
     vscode_extension_command = config["vscode_extension_command"]
 
-    # fixme: depends on how we config and install the vscode in virtual machine, need to be aligned and double-checked
 
     if os_type == "MacOS":
         trajectory = [

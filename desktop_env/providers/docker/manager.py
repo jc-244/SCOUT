@@ -30,11 +30,9 @@ if platform.system() == 'Windows':
 
 def _download_vm(vms_dir: str):
     global URL, DOWNLOADED_FILE_NAME
-    # Download the virtual machine image
     logger.info("Downloading the virtual machine image...")
     downloaded_size = 0
 
-    # Check for HF_ENDPOINT environment variable and replace domain if set to hf-mirror.com
     hf_endpoint = os.environ.get('HF_ENDPOINT')
     if hf_endpoint and 'hf-mirror.com' in hf_endpoint:
         URL = URL.replace('huggingface.co', 'hf-mirror.com')
@@ -53,7 +51,6 @@ def _download_vm(vms_dir: str):
 
         with requests.get(URL, headers=headers, stream=True) as response:
             if response.status_code == 416:
-                # This means the range was not satisfiable, possibly the file was fully downloaded
                 logger.info("Fully downloaded or the file size changed.")
                 break
 
@@ -79,10 +76,9 @@ def _download_vm(vms_dir: str):
                     logger.error("Retrying...")
                 else:
                     logger.info("Download succeeds.")
-                    break  # Download completed successfully
+                    break
 
     if downloaded_file_name.endswith(".zip"):
-        # Unzip the downloaded file
         logger.info("Unzipping the downloaded file...☕️")
         with zipfile.ZipFile(downloaded_file_path, 'r') as zip_ref:
             zip_ref.extractall(vms_dir)
@@ -100,7 +96,6 @@ class DockerVMManager(VMManager):
         pass
 
     def delete_vm(self, vm_path, region=None, **kwargs):
-        # Fixed: Added region and **kwargs parameters for interface compatibility
         pass
 
     def initialize_registry(self):
@@ -110,19 +105,15 @@ class DockerVMManager(VMManager):
         return os.path.join(VMS_DIR, DOWNLOADED_FILE_NAME)
 
     def occupy_vm(self, vm_path, pid, region=None, **kwargs):
-        # Fixed: Added pid, region and **kwargs parameters for interface compatibility
         pass
 
     def get_vm_path(self, os_type, region, screen_size=(1920, 1080), **kwargs):
-        # Note: screen_size parameter is ignored for Docker provider
-        # but kept for interface consistency with other providers
         global URL, DOWNLOADED_FILE_NAME
         if os_type == "Ubuntu":
             URL = UBUNTU_X86_URL
         elif os_type == "Windows":
             URL = WINDOWS_X86_URL
         
-        # Check for HF_ENDPOINT environment variable and replace domain if set to hf-mirror.com
         hf_endpoint = os.environ.get('HF_ENDPOINT')
         if hf_endpoint and 'hf-mirror.com' in hf_endpoint:
             URL = URL.replace('huggingface.co', 'hf-mirror.com')
